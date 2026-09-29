@@ -1,0 +1,35 @@
+# Secrets / local config
+.env
+*.pem
+*.key
+
+# Java / Maven / Gradle
+target/
+build/
+.gradle/
+*.class
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# ML artifacts and data (keep small samples only if intentional)
+ml-service/models/*.joblib
+data/raw/
+data/*.csv
+
+# Node
+node_modules/
+dist/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Docker volumes
+.docker-data/
