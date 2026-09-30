@@ -54,20 +54,17 @@ services:
       retries: 12
 
   # One-shot job: creates the project topics, then exits.
-  kafka-init:
-    image: apache/kafka:3.8.0
+  # Web UI to browse Kafka topics and messages: http://localhost:8085
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:latest
     depends_on:
       kafka:
         condition: service_healthy
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - |
-        for t in transactions.raw transactions.scored transactions.decisions transactions.dlq; do
-          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
-            --create --if-not-exists --topic $$t --partitions 3 --replication-factor 1
-        done
-        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
-    restart: "no"
+    ports:
+      - "8085:8080"          # 8085 on your machine, so it doesn't clash with the backend's 8080
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
 
   # Placeholder: replaced by the real scoring service in Phase 6.
   ml-service:

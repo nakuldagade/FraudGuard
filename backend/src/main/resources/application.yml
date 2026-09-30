@@ -1,0 +1,52 @@
+# ---------- Shared settings (all profiles) ----------
+spring:
+  application:
+    name: fraudguard
+  profiles:
+    default: local            # used when no profile is chosen explicitly
+  jpa:
+    open-in-view: false       # don't hold DB sessions open while rendering responses
+    hibernate:
+      ddl-auto: validate      # Flyway owns the schema; Hibernate only CHECKS it matches
+  kafka:
+    producer:
+      acks: all               # wait until the broker has safely stored the message
+      properties:
+        enable.idempotence: true   # the producer never writes the same message twice on retry
+        max.block.ms: 5000         # if Kafka is down, fail after 5s instead of hanging the API for 60s
+    consumer:
+      group-id: fraudguard-transaction-processor   # consumers in one group share the work
+      auto-offset-reset: earliest                  # a brand-new group starts from the oldest message
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info  # expose only these actuator endpoints
+
+---
+# ---------- local profile: app on your machine, services in docker compose ----------
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    # ${NAME:default} = use environment variable NAME, or the default if it isn't set
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:fraud}
+    username: ${POSTGRES_USER:fraud_user}
+    password: ${POSTGRES_PASSWORD:change_me_locally}
+  kafka:
+    bootstrap-servers: localhost:${KAFKA_HOST_PORT:29092}   # the host-facing Kafka listener
+
+---
+# ---------- test profile: Testcontainers supplies the database and Kafka ----------
+spring:
+  config:
+    activate:
+      on-profile: test
+logging:
+  level:
+    com.fraudguard: DEBUG
