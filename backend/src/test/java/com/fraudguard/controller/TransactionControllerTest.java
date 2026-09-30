@@ -4,31 +4,23 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.fraudguard.config.TestcontainersConfig;
 import com.jayway.jsonpath.JsonPath;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest          // start the whole application
 @AutoConfigureMockMvc    // gives us MockMvc: call endpoints without opening a real HTTP port
 @ActiveProfiles("test")  // use the "test" section of application.yml
-@Testcontainers
+@Import(TestcontainersConfig.class)   // PostgreSQL + Kafka in Docker, shared with other test classes
 class TransactionControllerTest {
-
-    // A throwaway PostgreSQL in Docker. @ServiceConnection points the app's datasource at it,
-    // and Flyway runs our V1 migration against it automatically.
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
 
     @Autowired
     MockMvc mvc;
