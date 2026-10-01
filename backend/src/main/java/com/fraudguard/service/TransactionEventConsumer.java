@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fraudguard.config.KafkaConfig;
 import com.fraudguard.dto.TransactionEvent;
+import com.fraudguard.dto.VelocityFeatures;
 import com.fraudguard.entity.Transaction;
 import com.fraudguard.entity.TransactionStatus;
 import com.fraudguard.repository.TransactionRepository;
@@ -21,13 +22,14 @@ public class TransactionEventConsumer {
 
     private final TransactionRepository repository;
     private final ObjectMapper objectMapper;
+    private final TransactionCacheService cacheService;   // NEW: Redis velocity features
 
     // Spring calls this method for every message that arrives on transactions.raw.
     // @Transactional: the database changes below are saved together, or not at all.
     //
     // If this method throws, KafkaConfig's error handler takes over:
     //   - IllegalArgumentException (bad message)  -> straight to the dead-letter topic
-    //   - any other exception (e.g. DB down)       -> retried after 1s, 2s, 4s, then dead-lettered
+    //   - any other exception (e.g. DB or Redis down) -> retried after 1s, 2s, 4s, then dead-lettered
     @KafkaListener(topics = KafkaConfig.TOPIC_RAW)
     @Transactional
     public void onTransactionRaw(String message) {
@@ -46,8 +48,14 @@ public class TransactionEventConsumer {
             return;
         }
 
+        // NEW: how active has this account been recently? Phases 5-7 (rules, ML score, decision)
+        // will use these values; for now we only log them.
+        // Retries are safe: Redis remembers the answer per transaction, so nothing is counted twice.
+        VelocityFeatures features = cacheService.recordAndComputeFeatures(event.payload());
+        log.info("velocity features transactionId={} {}", transactionId, features);
+
         // PLACEHOLDER DECISION: everything is approved for now.
-        // Phases 4-7 replace this line with velocity features, rules, ML score and a real decision.
+        // Phases 5-7 replace this line with rules, an ML score and a real decision.
         transaction.setStatus(TransactionStatus.APPROVED);
         transaction.setProcessedEventId(event.eventId());   // remember which event we applied
         repository.save(transaction);

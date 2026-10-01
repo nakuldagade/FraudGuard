@@ -40,7 +40,10 @@ spring:
     password: ${POSTGRES_PASSWORD:change_me_locally}
   kafka:
     bootstrap-servers: localhost:${KAFKA_HOST_PORT:29092}   # the host-facing Kafka listener
-
+  data:
+    redis:
+      host: localhost
+      port: ${REDIS_PORT:6379}
 ---
 # ---------- test profile: Testcontainers supplies the database and Kafka ----------
 spring:
