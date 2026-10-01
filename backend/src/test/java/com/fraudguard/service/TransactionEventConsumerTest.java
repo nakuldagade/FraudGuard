@@ -8,9 +8,11 @@ import com.fraudguard.config.KafkaConfig;
 import com.fraudguard.config.TestcontainersConfig;
 import com.fraudguard.dto.TransactionEvent;
 import com.fraudguard.dto.TransactionRequestDTO;
+import com.fraudguard.entity.OutboxEvent;
 import com.fraudguard.entity.Transaction;
 import com.fraudguard.entity.TransactionStatus;
 import com.fraudguard.entity.TransactionType;
+import com.fraudguard.repository.OutboxEventRepository;
 import com.fraudguard.repository.TransactionRepository;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -39,6 +41,7 @@ class TransactionEventConsumerTest {
 
     @Autowired TransactionService transactionService;
     @Autowired TransactionRepository repository;
+    @Autowired OutboxEventRepository outboxRepository;
     @Autowired KafkaTemplate<String, String> kafkaTemplate;
     @Autowired ObjectMapper objectMapper;
     @Autowired KafkaContainer kafka;   // the test broker, so we can read the dead-letter topic
@@ -50,6 +53,17 @@ class TransactionEventConsumerTest {
         // The consumer runs in the background, so wait (up to 30s) for the status to change
         awaitStatus(id, TransactionStatus.APPROVED);
         assertThat(repository.findById(id).orElseThrow().getProcessedEventId()).isNotNull();
+    }
+
+    @Test
+    void outboxRowIsSavedWithTheTransactionAndMarkedPublished() {
+        UUID id = createTransaction("acc-outbox-" + UUID.randomUUID()).getId();
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+            List<OutboxEvent> rows = outboxRepository.findByAggregateId(id);
+            assertThat(rows).hasSize(1);                            // exactly one event was recorded
+            assertThat(rows.get(0).getPublishedAt()).isNotNull();   // and the relay delivered it
+        });
     }
 
     @Test
@@ -104,7 +118,7 @@ class TransactionEventConsumerTest {
 
     // ---------- helpers ----------
 
-    // Saves a transaction through the real service (which also publishes the Kafka event)
+    // Saves a transaction through the real service (which also writes the outbox row)
     private Transaction createTransaction(String accountId) {
         var request = new TransactionRequestDTO(accountId, "m-1", TransactionType.PAYMENT,
                 new BigDecimal("100.00"), "INR", "dev-1", "IN", null);

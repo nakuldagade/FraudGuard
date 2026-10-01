@@ -1,14 +1,17 @@
 package com.fraudguard.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fraudguard.config.KafkaConfig;
 import com.fraudguard.dto.TransactionEvent;
 import com.fraudguard.dto.TransactionRequestDTO;
 import com.fraudguard.dto.TransactionResponseDTO;
+import com.fraudguard.entity.OutboxEvent;
 import com.fraudguard.entity.Transaction;
 import com.fraudguard.entity.TransactionStatus;
 import com.fraudguard.exception.IdempotencyConflictException;
 import com.fraudguard.exception.ResourceNotFoundException;
+import com.fraudguard.repository.OutboxEventRepository;
 import com.fraudguard.repository.TransactionRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -20,9 +23,9 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service              // Spring creates one instance and injects it where needed
 @Slf4j                // Lombok gives us a ready-made "log" variable
@@ -30,14 +33,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionRepository repository;
-    private final KafkaTemplate<String, String> kafkaTemplate;   // NEW: sends messages to Kafka
-    private final ObjectMapper objectMapper;                     // NEW: turns the event into JSON text
+    private final OutboxEventRepository outboxRepository;     // NEW: the outbox table
+    private final ObjectMapper objectMapper;                  // turns the event into JSON text
+    private final TransactionTemplate transactionTemplate;    // NEW: lets us open a transaction in code
 
     /*
-     * Deliberately NOT @Transactional: each repository call runs in its own transaction.
-     * If two identical requests race, the database UNIQUE constraint lets only one insert
-     * succeed. The loser gets an exception, and because it is not inside a bigger
-     * transaction we can safely re-read the winner's row and treat this call as a retry.
+     * This method itself is NOT @Transactional, because of the duplicate-key race described below.
+     * Instead, the two inserts that must succeed or fail TOGETHER run inside transactionTemplate.
      */
     @Override
     public CreateResult create(String idempotencyKey, TransactionRequestDTO request) {
@@ -52,16 +54,20 @@ public class TransactionServiceImpl implements TransactionService {
         // 2) New key: build the entity and save it.
         Transaction transaction = toEntity(idempotencyKey, hash, request);
         try {
-            Transaction saved = repository.saveAndFlush(transaction);
+            // NEW: ONE database transaction. The transaction row and its outbox row are saved
+            // together; if either insert fails, both are rolled back. No event is ever lost
+            // and no event is ever sent for a transaction that wasn't saved.
+            Transaction saved = transactionTemplate.execute(status -> {
+                Transaction t = repository.saveAndFlush(transaction);
+                outboxRepository.save(toOutboxEvent(t));
+                return t;
+            });
             log.info("transaction created id={} accountId={} status={}",
                     saved.getId(), saved.getAccountId(), saved.getStatus());
-
-            // NEW: the row is committed now, so announce it. Replays never publish again.
-            publishCreatedEvent(saved);
-
             return new CreateResult(TransactionResponseDTO.from(saved), true);
         } catch (DataIntegrityViolationException e) {
-            // 3) Lost a race with an identical request; load the winner and replay it.
+            // 3) Lost a race with an identical request (the UNIQUE constraint rejected our insert,
+            //    and everything we did was rolled back). Load the winner and replay it.
             Transaction winner = repository.findByIdempotencyKey(idempotencyKey)
                     .orElseThrow(() -> e);
             return replay(winner, hash);
@@ -76,29 +82,26 @@ public class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction " + id + " not found"));
     }
 
-    // NEW: publishes a TRANSACTION_CREATED event to Kafka.
+    // NEW: builds the outbox row for a saved transaction. The OutboxRelay delivers it to Kafka later.
     // The message key is the accountId: Kafka sends all messages with the same key to the same
-    // partition, so events for one account are processed in the order they were published.
-    // If publishing fails we log it but still return success to the caller: the transaction is
-    // saved (and stays PENDING). This is the "dual write" gap the outbox pattern would close.
-    private void publishCreatedEvent(Transaction saved) {
+    // partition, so events for one account are processed in the order they were created.
+    private OutboxEvent toOutboxEvent(Transaction t) {
+        TransactionEvent event = TransactionEvent.created(t);
+        OutboxEvent outbox = new OutboxEvent();
+        outbox.setId(event.eventId());
+        outbox.setAggregateId(t.getId());
+        outbox.setTopic(KafkaConfig.TOPIC_RAW);
+        outbox.setMessageKey(t.getAccountId());
+        outbox.setPayload(toJson(event));
+        outbox.setCreatedAt(Instant.now());
+        return outbox;
+    }
+
+    private String toJson(TransactionEvent event) {
         try {
-            TransactionEvent event = TransactionEvent.created(saved);
-            String json = objectMapper.writeValueAsString(event);
-            kafkaTemplate.send(KafkaConfig.TOPIC_RAW, saved.getAccountId(), json)
-                    .whenComplete((result, error) -> {
-                        if (error != null) {
-                            log.error("failed to publish event for transactionId={}", saved.getId(), error);
-                        } else {
-                            log.info("event published topic={} partition={} offset={} eventId={}",
-                                    result.getRecordMetadata().topic(),
-                                    result.getRecordMetadata().partition(),
-                                    result.getRecordMetadata().offset(),
-                                    event.eventId());
-                        }
-                    });
-        } catch (Exception e) {
-            log.error("failed to build event for transactionId={}", saved.getId(), e);
+            return objectMapper.writeValueAsString(event);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Could not serialize event " + event.eventId(), e);
         }
     }
 
