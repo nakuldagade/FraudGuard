@@ -3,11 +3,13 @@ package com.fraudguard.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fraudguard.config.KafkaConfig;
+import com.fraudguard.dto.RuleHit;
 import com.fraudguard.dto.TransactionEvent;
 import com.fraudguard.dto.VelocityFeatures;
 import com.fraudguard.entity.Transaction;
-import com.fraudguard.entity.TransactionStatus;
 import com.fraudguard.repository.TransactionRepository;
+import com.fraudguard.rules.RiskAssessment;
+import com.fraudguard.rules.RuleEngine;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +24,8 @@ public class TransactionEventConsumer {
 
     private final TransactionRepository repository;
     private final ObjectMapper objectMapper;
-    private final TransactionCacheService cacheService;   // NEW: Redis velocity features
+    private final TransactionCacheService cacheService;   // Redis velocity features
+    private final RuleEngine ruleEngine;                  // NEW: turns features into a verdict
 
     // Spring calls this method for every message that arrives on transactions.raw.
     // @Transactional: the database changes below are saved together, or not at all.
@@ -48,20 +51,23 @@ public class TransactionEventConsumer {
             return;
         }
 
-        // NEW: how active has this account been recently? Phases 5-7 (rules, ML score, decision)
-        // will use these values; for now we only log them.
-        // Retries are safe: Redis remembers the answer per transaction, so nothing is counted twice.
+        // How active has this account been recently? (Redis; safe to retry, see Phase 4)
         VelocityFeatures features = cacheService.recordAndComputeFeatures(event.payload());
         log.info("velocity features transactionId={} {}", transactionId, features);
 
-        // PLACEHOLDER DECISION: everything is approved for now.
-        // Phases 5-7 replace this line with rules, an ML score and a real decision.
-        transaction.setStatus(TransactionStatus.APPROVED);
+        // NEW: run the fraud rules. The verdict has a 0-100 score, a status and the reasons.
+        RiskAssessment assessment = ruleEngine.assess(event.payload(), features);
+
+        // NEW: store the verdict with the transaction, so it can always be explained later
+        transaction.setStatus(assessment.status());
+        transaction.setRiskScore(assessment.score());
+        transaction.setRuleHits(assessment.hits());
         transaction.setProcessedEventId(event.eventId());   // remember which event we applied
         repository.save(transaction);
 
-        log.info("transaction processed id={} status={} eventId={}",
-                transactionId, transaction.getStatus(), event.eventId());
+        log.info("transaction assessed id={} status={} score={} reasons={} eventId={}",
+                transactionId, assessment.status(), assessment.score(),
+                assessment.hits().stream().map(RuleHit::code).toList(), event.eventId());
     }
 
     // Turns the JSON text into a TransactionEvent and checks it is something we understand.
