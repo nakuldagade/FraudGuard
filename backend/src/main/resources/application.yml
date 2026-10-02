@@ -27,6 +27,32 @@ management:
       exposure:
         include: health,info  # expose only these actuator endpoints
 
+# Fraud rules: change a number here and restart, no code change needed.
+fraudguard:
+  rules:
+    high-velocity:
+      enabled: true
+      max-per-five-minutes: 5     # more than this many transactions in 5 minutes fires the rule
+      max-per-hour: 20            # ...or more than this many in an hour
+      score: 40
+    unusual-amount:
+      enabled: true
+      min-z-score: 3.0            # standard deviations above the account's usual amount
+      min-amount: 1000            # ignore small amounts, however unusual
+      score: 50
+    new-device-high-amount:
+      enabled: true
+      min-history: 5              # needs this many earlier transactions to judge "high"
+      amount-multiplier: 3.0      # "high" = at least this many times the account's average
+      score: 30
+    rapid-country-change:
+      enabled: true
+      within-seconds: 3600        # country changed within this long after the previous transaction
+      score: 35
+    decision:                     # interim thresholds; Phase 7 replaces them with the full policy
+      review-at: 40               # total score at or above this -> REVIEW
+      block-at: 80                # total score at or above this -> BLOCKED
+
 ---
 # ---------- local profile: app on your machine, services in docker compose ----------
 spring:
@@ -44,8 +70,9 @@ spring:
     redis:
       host: localhost
       port: ${REDIS_PORT:6379}
+
 ---
-# ---------- test profile: Testcontainers supplies the database and Kafka ----------
+# ---------- test profile: Testcontainers supplies the database, Kafka and Redis ----------
 spring:
   config:
     activate:

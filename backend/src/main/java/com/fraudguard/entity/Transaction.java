@@ -7,6 +7,8 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import com.fraudguard.dto.RuleHit;
+import java.util.List;
 
 @Entity                          // this class maps to a database table
 @Table(name = "transactions")    // ...the table named "transactions"
@@ -61,6 +63,14 @@ public class Transaction {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private TransactionStatus status;
+
+    // Result of the rule engine (Phase 5): total risk 0-100 and the rules that fired
+    @Column(name = "risk_score")
+    private Integer riskScore;
+
+    @Convert(converter = RuleHitsConverter.class)
+    @Column(name = "rule_hits", length = 4000)
+    private List<RuleHit> ruleHits;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
