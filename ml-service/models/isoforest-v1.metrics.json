@@ -1,0 +1,42 @@
+{
+  "model_version": "isoforest-v1",
+  "feature_schema_version": "1",
+  "data": "SYNTHETIC - measures detection of the generated fraud patterns only, not real-world accuracy",
+  "split": "chronological: 70% oldest train, 15% validation, 15% newest test",
+  "validation": {
+    "rows": 9843,
+    "fraud_rows": 77,
+    "fraud_rate": 0.00782,
+    "pr_auc": 0.8419,
+    "roc_auc": 0.9985,
+    "threshold": 0.6615,
+    "confusion_matrix": {
+      "true_negative": 9755,
+      "false_positive": 11,
+      "false_negative": 15,
+      "true_positive": 62
+    },
+    "precision": 0.8493,
+    "recall": 0.8052,
+    "false_positive_rate": 0.00113,
+    "alert_rate": 0.00742
+  },
+  "test": {
+    "rows": 9843,
+    "fraud_rows": 65,
+    "fraud_rate": 0.0066,
+    "pr_auc": 0.9295,
+    "roc_auc": 0.9993,
+    "threshold": 0.6615,
+    "confusion_matrix": {
+      "true_negative": 9773,
+      "false_positive": 5,
+      "false_negative": 16,
+      "true_positive": 49
+    },
+    "precision": 0.9074,
+    "recall": 0.7538,
+    "false_positive_rate": 0.00051,
+    "alert_rate": 0.00549
+  }
+}

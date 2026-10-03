@@ -1,2 +1,13 @@
+# Serving
 fastapi==0.115.*
 uvicorn[standard]==0.32.*
+
+# Model + training. These versions are PINNED EXACTLY on purpose: a saved model (joblib/pickle)
+# must be loaded with the same scikit-learn/numpy versions that trained it.
+numpy==2.3.5
+scikit-learn==1.7.2
+joblib==1.5.2
+
+# Tests
+pytest==8.4.2
+httpx==0.28.1

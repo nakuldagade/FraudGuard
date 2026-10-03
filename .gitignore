@@ -17,7 +17,7 @@ venv/
 .pytest_cache/
 
 # ML artifacts and data (keep small samples only if intentional)
-ml-service/models/*.joblib
+#ml-service/models/*.joblib
 data/raw/
 data/*.csv
 
