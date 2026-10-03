@@ -36,6 +36,15 @@ fraudguard:
     failure-threshold: 3      # this many failures in a row open the circuit breaker
     open-seconds: 30          # ...and ML calls are skipped for this long
 
+  # The final decision policy: combines rule verdict + ML score + velocity features.
+  # Change a number here and restart. Bump policy-version when you change the policy, so every
+  # stored decision says which policy made it. See docs/decision-policy.md.
+  decision:
+    policy-version: policy-v1
+    ml-min-history: 5         # the ML score only counts for accounts with at least this many earlier transactions
+    ml-review-at: 0.66        # ML anomaly score at/above this = "elevated": a clean transaction goes to REVIEW
+    ml-very-high-at: 0.70     # at/above this = "very high": with a rule REVIEW it becomes BLOCKED
+
   # Fraud rules: change a number here and restart, no code change needed.
   rules:
     high-velocity:
@@ -57,9 +66,9 @@ fraudguard:
       enabled: true
       within-seconds: 3600        # country changed within this long after the previous transaction
       score: 35
-    decision:                     # interim thresholds; Phase 7 replaces them with the full policy
-      review-at: 40               # total score at or above this -> REVIEW
-      block-at: 80                # total score at or above this -> BLOCKED
+    decision:                     # the RULE ENGINE's own score bands (the final policy is fraudguard.decision)
+      review-at: 40               # rule score at or above this -> the rules say REVIEW
+      block-at: 80                # rule score at or above this -> the rules say BLOCKED
 
 ---
 # ---------- local profile: app on your machine, services in docker compose ----------

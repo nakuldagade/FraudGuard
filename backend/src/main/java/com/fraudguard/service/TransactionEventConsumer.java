@@ -3,8 +3,9 @@ package com.fraudguard.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fraudguard.config.KafkaConfig;
+import com.fraudguard.decision.Decision;
+import com.fraudguard.decision.DecisionEngine;
 import com.fraudguard.dto.MlScoreResponse;
-import com.fraudguard.dto.RuleHit;
 import com.fraudguard.dto.TransactionEvent;
 import com.fraudguard.dto.VelocityFeatures;
 import com.fraudguard.entity.Transaction;
@@ -27,8 +28,9 @@ public class TransactionEventConsumer {
     private final TransactionRepository repository;
     private final ObjectMapper objectMapper;
     private final TransactionCacheService cacheService;   // Redis velocity features
-    private final RuleEngine ruleEngine;                  // rules -> risk score + status
-    private final MlServiceClient mlClient;               // NEW: ML anomaly score (optional)
+    private final RuleEngine ruleEngine;                  // rules -> rule score + rule verdict
+    private final MlServiceClient mlClient;               // ML anomaly score (optional)
+    private final DecisionEngine decisionEngine;          // NEW: combines everything into the final decision
 
     // Spring calls this method for every message that arrives on transactions.raw.
     // @Transactional: the database changes below are saved together, or not at all.
@@ -58,31 +60,42 @@ public class TransactionEventConsumer {
         VelocityFeatures features = cacheService.recordAndComputeFeatures(event.payload());
         log.info("velocity features transactionId={} {}", transactionId, features);
 
-        // NEW: ask the ML service how unusual this transaction looks. This never throws: if the
-        // service is down or slow we get an empty result and carry on with the rules alone.
+        // How unusual does the ML model find it? Never throws: empty if the service is down.
         Optional<MlScoreResponse> ml = mlClient.score(event.payload(), features);
 
-        // Run the fraud rules. The verdict has a 0-100 score, a status and the reasons.
-        // (Phase 6: the ML score is stored but does not influence the status yet; Phase 7 combines them.)
+        // What do the fraud rules say?
         RiskAssessment assessment = ruleEngine.assess(event.payload(), features);
 
-        // Store everything with the transaction, so it can always be explained later
-        transaction.setStatus(assessment.status());
-        transaction.setRiskScore(assessment.score());
+        // NEW: the final decision, combining rules + ML + velocity features under one policy
+        Decision decision = decisionEngine.decide(assessment, ml, features);
+
+        // Store everything with the transaction, so the decision can always be explained later
+        transaction.setStatus(decision.status());                              // NEW: the final decision
+        transaction.setRiskScore(assessment.score());                          // the rule score
         transaction.setRuleHits(assessment.hits());
-        ml.ifPresent(result -> {                               // NEW
+        ml.ifPresent(result -> {
             transaction.setAnomalyScore(result.anomalyScore());
             transaction.setModelVersion(result.modelVersion());
         });
+        transaction.setPolicyVersion(decision.policyVersion());                // NEW
+        transaction.setReasonCodes(String.join(",", decision.reasonCodes()));  // NEW
+        transaction.setDecisionExplanation(decision.explanation());            // NEW
+        transaction.setDecisionInputs(toJson(decision.inputs()));              // NEW: full snapshot
         transaction.setProcessedEventId(event.eventId());   // remember which event we applied
         repository.save(transaction);
 
-        log.info("transaction assessed id={} status={} score={} reasons={} anomalyScore={} model={} eventId={}",
-                transactionId, assessment.status(), assessment.score(),
-                assessment.hits().stream().map(RuleHit::code).toList(),
-                ml.map(MlScoreResponse::anomalyScore).orElse(null),
-                ml.map(MlScoreResponse::modelVersion).orElse(null),
+        log.info("transaction decided id={} status={} reasons={} policy={} eventId={}",
+                transactionId, decision.status(), decision.reasonCodes(), decision.policyVersion(),
                 event.eventId());
+    }
+
+    // NEW: turns the decision snapshot into JSON text for the database column
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Could not serialize the decision inputs", e);
+        }
     }
 
     // Turns the JSON text into a TransactionEvent and checks it is something we understand.

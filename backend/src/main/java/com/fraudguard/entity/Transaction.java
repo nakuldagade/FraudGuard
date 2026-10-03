@@ -21,6 +21,19 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.UUID)   // Hibernate generates the UUID for us
     private UUID id;
 
+    // The final decision (Phase 7): the policy that produced it, why, and everything it was based on
+    @Column(name = "policy_version", length = 32)
+    private String policyVersion;
+
+    @Column(name = "reason_codes", length = 500)
+    private String reasonCodes;                // comma-separated, e.g. HIGH_VELOCITY,ML_ANOMALY_VERY_HIGH
+
+    @Column(name = "decision_explanation", length = 1000)
+    private String decisionExplanation;
+
+    @Column(name = "decision_inputs", length = 8000)
+    private String decisionInputs;             // JSON snapshot of the DecisionInputs record
+
     // ID of the last Kafka event applied to this row (see V2 migration); used to skip duplicates
     @Column(name = "processed_event_id")
     private UUID processedEventId;

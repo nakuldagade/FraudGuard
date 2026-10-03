@@ -18,11 +18,14 @@ public record TransactionResponseDTO(
         String deviceId,
         String country,
         Instant occurredAt,
-        TransactionStatus status,
-        Integer riskScore,        // null until the transaction has been processed
-        List<RuleHit> ruleHits,   // the rules that fired, with reasons (empty if none)
-        Double anomalyScore,      // NEW: ML anomaly score; null if the ML service was unavailable
-        String modelVersion,      // NEW: which model produced it, e.g. isoforest-v1
+        TransactionStatus status,       // the final decision
+        Integer riskScore,              // the RULE engine's score, 0-100 (null until processed)
+        List<RuleHit> ruleHits,         // the rules that fired, with reasons (empty if none)
+        Double anomalyScore,            // ML anomaly score; null if the ML service was unavailable
+        String modelVersion,            // which model produced it, e.g. isoforest-v1
+        String policyVersion,           // NEW: which decision policy produced the status
+        List<String> reasonCodes,       // NEW: why, e.g. [HIGH_VELOCITY, ML_ANOMALY_VERY_HIGH]
+        String decisionExplanation,     // NEW: the same in plain English
         Instant createdAt
 ) {
     // Converts a database entity into the public response shape
@@ -33,6 +36,10 @@ public record TransactionResponseDTO(
                 t.getOccurredAt(), t.getStatus(), t.getRiskScore(),
                 t.getRuleHits() == null ? List.of() : t.getRuleHits(),
                 t.getAnomalyScore(), t.getModelVersion(),
+                t.getPolicyVersion(),
+                t.getReasonCodes() == null || t.getReasonCodes().isBlank()
+                        ? List.of() : List.of(t.getReasonCodes().split(",")),
+                t.getDecisionExplanation(),
                 t.getCreatedAt());
     }
 }
