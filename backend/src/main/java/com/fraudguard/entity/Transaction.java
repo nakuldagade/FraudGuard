@@ -72,6 +72,14 @@ public class Transaction {
     @Column(name = "rule_hits", length = 4000)
     private List<RuleHit> ruleHits;
 
+    // ML anomaly score (Phase 6) and the model that produced it. Both are null when the ML
+    // service was unavailable for this transaction.
+    @Column(name = "anomaly_score")
+    private Double anomalyScore;
+
+    @Column(name = "model_version", length = 64)
+    private String modelVersion;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

@@ -27,8 +27,16 @@ management:
       exposure:
         include: health,info  # expose only these actuator endpoints
 
-# Fraud rules: change a number here and restart, no code change needed.
 fraudguard:
+  # ML scoring service (Python). Scoring is optional: if the service is down, rules still decide.
+  ml:
+    enabled: true
+    base-url: http://localhost:8000
+    timeout-ms: 1500          # give up on a call after this long
+    failure-threshold: 3      # this many failures in a row open the circuit breaker
+    open-seconds: 30          # ...and ML calls are skipped for this long
+
+  # Fraud rules: change a number here and restart, no code change needed.
   rules:
     high-velocity:
       enabled: true
@@ -77,6 +85,9 @@ spring:
   config:
     activate:
       on-profile: test
+fraudguard:
+  ml:
+    enabled: false            # tests don't call the ML service unless a test switches it on
 logging:
   level:
     com.fraudguard: DEBUG

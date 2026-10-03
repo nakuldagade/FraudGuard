@@ -19,8 +19,10 @@ public record TransactionResponseDTO(
         String country,
         Instant occurredAt,
         TransactionStatus status,
-        Integer riskScore,        // NEW: null until the transaction has been processed
-        List<RuleHit> ruleHits,   // NEW: the rules that fired, with reasons (empty if none)
+        Integer riskScore,        // null until the transaction has been processed
+        List<RuleHit> ruleHits,   // the rules that fired, with reasons (empty if none)
+        Double anomalyScore,      // NEW: ML anomaly score; null if the ML service was unavailable
+        String modelVersion,      // NEW: which model produced it, e.g. isoforest-v1
         Instant createdAt
 ) {
     // Converts a database entity into the public response shape
@@ -30,6 +32,7 @@ public record TransactionResponseDTO(
                 t.getAmount(), t.getCurrency(), t.getDeviceId(), t.getCountry(),
                 t.getOccurredAt(), t.getStatus(), t.getRiskScore(),
                 t.getRuleHits() == null ? List.of() : t.getRuleHits(),
+                t.getAnomalyScore(), t.getModelVersion(),
                 t.getCreatedAt());
     }
 }
