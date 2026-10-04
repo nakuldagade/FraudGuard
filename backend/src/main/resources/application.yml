@@ -28,6 +28,10 @@ management:
         include: health,info  # expose only these actuator endpoints
 
 fraudguard:
+  # Which web pages (origins) may call the API from a browser. Comma-separated.
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173   # the React dev server
+
   # ML scoring service (Python). Scoring is optional: if the service is down, rules still decide.
   ml:
     enabled: true

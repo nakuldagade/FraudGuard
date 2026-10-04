@@ -34,6 +34,12 @@ public class Transaction {
     @Column(name = "decision_inputs", length = 8000)
     private String decisionInputs;             // JSON snapshot of the DecisionInputs record
 
+    // The analyst's current verdict (Phase 8). Separate from `status`, which is the model's decision
+    // and is never changed by an analyst.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "review_state", nullable = false, length = 24)
+    private ReviewState reviewState = ReviewState.UNREVIEWED;
+
     // ID of the last Kafka event applied to this row (see V2 migration); used to skip duplicates
     @Column(name = "processed_event_id")
     private UUID processedEventId;
