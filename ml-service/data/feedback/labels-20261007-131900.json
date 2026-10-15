@@ -1,0 +1,267 @@
+[
+  {
+    "transactionId": "d6f0ccd9-9e5f-4f45-aeae-bb026413e951",
+    "label": 0,
+    "action": "MARK_LEGITIMATE",
+    "reviewer": "Nakul Dagade",
+    "labeledAt": "2026-10-06T15:47:37.458795Z",
+    "occurredAt": "2026-10-03T10:12:02.247620Z",
+    "amount": 5000.0,
+    "status": "BLOCKED",
+    "riskScore": 100,
+    "anomalyScore": 0.796925,
+    "modelVersion": "isoforest-v1",
+    "decisionInputs": {
+      "policyVersion": "policy-v1",
+      "decidedAt": "2026-10-03T10:12:02.975745Z",
+      "velocityFeatures": {
+        "transactionCount5m": 6,
+        "transactionCount1h": 6,
+        "amountSum5m": 5500.0,
+        "amountSum1h": 5500.0,
+        "historyCount": 5,
+        "averageAmount": 100.0,
+        "amountStdDev": 1.58,
+        "amountZScore": 3099.032106965,
+        "newDevice": true,
+        "newMerchant": true,
+        "secondsSincePreviousTransaction": 0,
+        "countryChanged": true
+      },
+      "ruleScore": 100,
+      "ruleStatus": "BLOCKED",
+      "ruleHits": [
+        {
+          "code": "UNUSUAL_AMOUNT",
+          "score": 50,
+          "reason": "Amount 5000 is 3099.0 standard deviations above this account's average of 100.00"
+        },
+        {
+          "code": "HIGH_VELOCITY",
+          "score": 40,
+          "reason": "6 transactions in the last 5 minutes (limit 5)"
+        },
+        {
+          "code": "RAPID_COUNTRY_CHANGE",
+          "score": 35,
+          "reason": "Country changed to US only 0 seconds after the previous transaction"
+        },
+        {
+          "code": "NEW_DEVICE_HIGH_AMOUNT",
+          "score": 30,
+          "reason": "New device with amount 5000, at least 3.0x this account's average of 100.00"
+        }
+      ],
+      "anomalyScore": 0.796925,
+      "modelVersion": "isoforest-v1",
+      "mlSignal": "VERY_HIGH",
+      "thresholds": {
+        "ruleReviewAt": 40,
+        "ruleBlockAt": 80,
+        "mlMinHistory": 5,
+        "mlReviewAt": 0.66,
+        "mlVeryHighAt": 0.7
+      }
+    }
+  },
+  {
+    "transactionId": "8416484c-6e27-4bae-bfbd-ce33e3a636fa",
+    "label": 0,
+    "action": "MARK_LEGITIMATE",
+    "reviewer": "demo-analyst",
+    "labeledAt": "2026-10-07T12:26:46.658041Z",
+    "occurredAt": "2026-10-07T12:26:40.809Z",
+    "amount": 136.9,
+    "status": "REVIEW",
+    "riskScore": 40,
+    "anomalyScore": 0.654274,
+    "modelVersion": "isoforest-v1",
+    "decisionInputs": {
+      "policyVersion": "policy-v1",
+      "decidedAt": "2026-10-07T12:26:41.511620Z",
+      "velocityFeatures": {
+        "transactionCount5m": 7,
+        "transactionCount1h": 7,
+        "amountSum5m": 1811.01,
+        "amountSum1h": 1811.01,
+        "historyCount": 6,
+        "averageAmount": 279.02,
+        "amountStdDev": 90.37,
+        "amountZScore": -1.57264193993,
+        "newDevice": false,
+        "newMerchant": false,
+        "secondsSincePreviousTransaction": 0,
+        "countryChanged": false
+      },
+      "ruleScore": 40,
+      "ruleStatus": "REVIEW",
+      "ruleHits": [
+        {
+          "code": "HIGH_VELOCITY",
+          "score": 40,
+          "reason": "7 transactions in the last 5 minutes (limit 5)"
+        }
+      ],
+      "anomalyScore": 0.654274,
+      "modelVersion": "isoforest-v1",
+      "mlSignal": "NORMAL",
+      "thresholds": {
+        "ruleReviewAt": 40,
+        "ruleBlockAt": 80,
+        "mlMinHistory": 5,
+        "mlReviewAt": 0.66,
+        "mlVeryHighAt": 0.7
+      }
+    }
+  },
+  {
+    "transactionId": "842de873-a738-4a6f-a10f-725a6b0d960b",
+    "label": 1,
+    "action": "CONFIRM_FRAUD",
+    "reviewer": "demo-analyst",
+    "labeledAt": "2026-10-07T12:26:46.654694Z",
+    "occurredAt": "2026-10-07T12:26:40.849Z",
+    "amount": 165.48,
+    "status": "REVIEW",
+    "riskScore": 40,
+    "anomalyScore": 0.641626,
+    "modelVersion": "isoforest-v1",
+    "decisionInputs": {
+      "policyVersion": "policy-v1",
+      "decidedAt": "2026-10-07T12:26:41.519222Z",
+      "velocityFeatures": {
+        "transactionCount5m": 8,
+        "transactionCount1h": 8,
+        "amountSum5m": 1976.49,
+        "amountSum1h": 1976.49,
+        "historyCount": 7,
+        "averageAmount": 258.72,
+        "amountStdDev": 98.44,
+        "amountZScore": -0.94711146553676,
+        "newDevice": false,
+        "newMerchant": false,
+        "secondsSincePreviousTransaction": 0,
+        "countryChanged": false
+      },
+      "ruleScore": 40,
+      "ruleStatus": "REVIEW",
+      "ruleHits": [
+        {
+          "code": "HIGH_VELOCITY",
+          "score": 40,
+          "reason": "8 transactions in the last 5 minutes (limit 5)"
+        }
+      ],
+      "anomalyScore": 0.641626,
+      "modelVersion": "isoforest-v1",
+      "mlSignal": "NORMAL",
+      "thresholds": {
+        "ruleReviewAt": 40,
+        "ruleBlockAt": 80,
+        "mlMinHistory": 5,
+        "mlReviewAt": 0.66,
+        "mlVeryHighAt": 0.7
+      }
+    }
+  },
+  {
+    "transactionId": "7208ddb5-e2a4-4118-a693-db6ba3c6ec9e",
+    "label": 0,
+    "action": "MARK_LEGITIMATE",
+    "reviewer": "demo-analyst",
+    "labeledAt": "2026-10-07T12:26:46.644769Z",
+    "occurredAt": "2026-10-07T12:26:41.087Z",
+    "amount": 369.94,
+    "status": "REVIEW",
+    "riskScore": 40,
+    "anomalyScore": 0.635529,
+    "modelVersion": "isoforest-v1",
+    "decisionInputs": {
+      "policyVersion": "policy-v1",
+      "decidedAt": "2026-10-07T12:26:41.601870Z",
+      "velocityFeatures": {
+        "transactionCount5m": 7,
+        "transactionCount1h": 7,
+        "amountSum5m": 2060.95,
+        "amountSum1h": 2060.95,
+        "historyCount": 6,
+        "averageAmount": 281.84,
+        "amountStdDev": 119.86,
+        "amountZScore": 0.73506353846053,
+        "newDevice": false,
+        "newMerchant": false,
+        "secondsSincePreviousTransaction": 0,
+        "countryChanged": false
+      },
+      "ruleScore": 40,
+      "ruleStatus": "REVIEW",
+      "ruleHits": [
+        {
+          "code": "HIGH_VELOCITY",
+          "score": 40,
+          "reason": "7 transactions in the last 5 minutes (limit 5)"
+        }
+      ],
+      "anomalyScore": 0.635529,
+      "modelVersion": "isoforest-v1",
+      "mlSignal": "NORMAL",
+      "thresholds": {
+        "ruleReviewAt": 40,
+        "ruleBlockAt": 80,
+        "mlMinHistory": 5,
+        "mlReviewAt": 0.66,
+        "mlVeryHighAt": 0.7
+      }
+    }
+  },
+  {
+    "transactionId": "871551eb-9e16-46cc-adbf-babd505e98ab",
+    "label": 1,
+    "action": "CONFIRM_FRAUD",
+    "reviewer": "demo-analyst",
+    "labeledAt": "2026-10-07T12:26:46.633953Z",
+    "occurredAt": "2026-10-07T12:26:41.128Z",
+    "amount": 88.45,
+    "status": "REVIEW",
+    "riskScore": 40,
+    "anomalyScore": 0.670917,
+    "modelVersion": "isoforest-v1",
+    "decisionInputs": {
+      "policyVersion": "policy-v1",
+      "decidedAt": "2026-10-07T12:26:41.610089Z",
+      "velocityFeatures": {
+        "transactionCount5m": 8,
+        "transactionCount1h": 8,
+        "amountSum5m": 2149.4,
+        "amountSum1h": 2149.4,
+        "historyCount": 7,
+        "averageAmount": 294.42,
+        "amountStdDev": 114.37,
+        "amountZScore": -1.8008857504124,
+        "newDevice": false,
+        "newMerchant": false,
+        "secondsSincePreviousTransaction": 0,
+        "countryChanged": false
+      },
+      "ruleScore": 40,
+      "ruleStatus": "REVIEW",
+      "ruleHits": [
+        {
+          "code": "HIGH_VELOCITY",
+          "score": 40,
+          "reason": "8 transactions in the last 5 minutes (limit 5)"
+        }
+      ],
+      "anomalyScore": 0.670917,
+      "modelVersion": "isoforest-v1",
+      "mlSignal": "ELEVATED",
+      "thresholds": {
+        "ruleReviewAt": 40,
+        "ruleBlockAt": 80,
+        "mlMinHistory": 5,
+        "mlReviewAt": 0.66,
+        "mlVeryHighAt": 0.7
+      }
+    }
+  }
+]
