@@ -38,21 +38,56 @@ Design goals:
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    Client[Client / Seed Script] -->|POST transaction| API[Spring Boot API]
-    API -->|save + outbox in one DB transaction| PG[(PostgreSQL)]
-    PG -->|outbox relay| K1[[transactions.raw]]
-    K1 --> Consumer[Event Consumer]
-    Consumer <-->|velocity features| Redis[(Redis)]
-    Consumer --> Rules[Rule Engine]
-    Consumer -->|score request, optional| ML[FastAPI ML Service]
-    Rules --> Decision[Decision Engine policy-v1]
-    ML --> Decision
-    Decision -->|final status| PG
-    Decision --> K2[[transactions.decisions]]
-    Consumer -.->|failed after retries| DLQ[[transactions.dlq]]
-    PG --> Dashboard[React Analyst Dashboard]
+```text
+┌──────────────────┐       ┌────────────────────────────────────────────────────────────┐
+│ React Dashboard  │       │                   Spring Boot (port 8080)                  │
+│  (Vite :5173)    │──────▶│                                                            │
+└──────────────────┘  HTTP │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+                           │  │ Transaction  │  │  Rate Limit  │  │    CORS      │      │
+                           │  │ Controller   │  │   Filter     │  │   Config     │      │
+                           │  └──────┬───────┘  └──────────────┘  └──────────────┘      │
+                           │         │                                                  │
+                           │  ┌──────▼─────────────────────────────────────────────┐    │
+                           │  │ TransactionServiceImpl                             │    │
+                           │  │ • Validate, save to PostgreSQL as PENDING          │    │
+                           │  │ • Write outbox row (same DB transaction)           │    │
+                           │  │ • Outbox relay publishes to transactions.raw       │    │
+                           │  └──────┬─────────────────────────────────────────────┘    │
+                           │         │                                                  │
+                           │  ┌──────▼─────────────────────────────────────────────┐    │
+                           │  │ TransactionEventConsumer                           │    │
+                           │  │ • Consume transactions.raw                         │    │
+                           │  │ • Velocity features from Redis                     │    │
+                           │  │ • Rule engine: risk score + reasons                │    │
+                           │  │ • Call ML service (optional) ◀── MlServiceClient   │    │
+                           │  │ • Decision engine (policy-v1): final status        │    │
+                           │  │ • Update PostgreSQL, publish transactions.decisions│    │
+                           │  └────────────────────────────────────────────────────┘    │
+                           └────────────────────────────────────────────────────────────┘
+                                        │                  ▲
+                                        ▼                  │  HTTP scoring request
+                              ┌──────────────────┐   ┌─────┴──────────────┐
+                              │   Apache Kafka   │   │    ML Service      │
+                              │                  │   │   (FastAPI :8000)  │
+                              │  transactions.   │   │                    │
+                              │    raw           │   │  Isolation Forest  │
+                              │    scored        │   │  Anomaly Detection │
+                              │    decisions     │   └────────────────────┘
+                              │    dlq           │
+                              └──────────────────┘
+                                        │
+          ┌─────────────────────────────┼─────────────────────────────┐
+          ▼                             ▼                             ▼
+┌──────────────────┐       ┌──────────────────┐          ┌──────────────────┐
+│   PostgreSQL     │       │      Redis       │          │    Kafka UI      │
+│   (port 5432)    │       │   (port 6379)    │          │   (port 8085)    │
+│                  │       │                  │          │                  │
+│  transactions    │       │  • Velocity      │          │  Topic browser   │
+│  outbox          │       │    counters      │          │  Consumer groups │
+│  analyst_reviews │       │  • Account       │          │  DLQ inspection  │
+│  (Flyway V1-V7)  │       │    behaviour     │          └──────────────────┘
+└──────────────────┘       │  • TX cache      │
+                           └──────────────────┘
 ```
 
 **Transaction lifecycle:** `PENDING` -> `APPROVED` | `REVIEW` | `BLOCKED`
@@ -120,35 +155,196 @@ Versions of NumPy and scikit-learn are pinned exactly, because a saved model mus
 
 ```text
 fraudguard/
-├── backend/                          # Spring Boot service (package com.fraudguard)
+├── .env.example                                  # Template for local credentials (copy to .env)
+├── .gitignore
+├── README.md
+├── docker-compose.yml                            # PostgreSQL, Redis, Kafka, Kafka UI, ML service
+│
+├── backend/                                      # Spring Boot service (package com.fraudguard)
+│   ├── README.md
 │   ├── pom.xml
-│   └── src/main/
-│       ├── java/com/fraudguard/
-│       │   ├── config/               # KafkaConfig, RedisConfig, CorsConfig
-│       │   ├── controller/           # REST controllers
-│       │   ├── dto/                  # Request/response objects and events
-│       │   ├── entity/               # Transaction, TransactionStatus, TransactionType
-│       │   ├── exception/            # Global error handling
-│       │   ├── filter/               # RateLimitFilter, CachedBodyHttpServletRequest
-│       │   ├── repository/           # JPA repositories
-│       │   ├── service/              # Transaction service, event consumer, cache, MlServiceClient
-│       │   └── decision/             # Decision engine (policy-v1)
-│       └── resources/
-│           ├── application.yml       # Profiles: local (default), test
-│           └── db/migration/         # Flyway SQL migrations
-├── ml-service/                       # FastAPI ML scoring service
-│   ├── app/                          # main.py, model.py, features.py, schemas.py
-│   ├── models/                       # isoforest-v1.joblib
-│   ├── training/                     # train.py
-│   ├── tests/                        # pytest suite
-│   └── requirements.txt
-├── frontend/                         # React + TypeScript dashboard (Vite)
-│   └── scripts/seed-demo.mjs         # Demo data generator
-├── docs/                             # decision-policy.md and other docs
-├── infra/                            # Infrastructure configuration
-└── docker-compose.yml                # PostgreSQL, Redis, Kafka, Kafka UI, ML service
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/fraudguard/
+│       │   │   ├── FraudGuardApplication.java    # Application entry point
+│       │   │   │
+│       │   │   ├── config/
+│       │   │   │   ├── CorsConfig.java           # Allowed browser origins
+│       │   │   │   ├── KafkaConfig.java          # Topics, retry backoff, dead-letter queue
+│       │   │   │   └── RedisConfig.java          # Redis client and template setup
+│       │   │   │
+│       │   │   ├── controller/
+│       │   │   │   ├── FeedbackController.java   # Analyst feedback and label endpoints
+│       │   │   │   └── TransactionController.java# Submit, list, filter, review transactions
+│       │   │   │
+│       │   │   ├── decision/                     # Final decision policy (policy-v1)
+│       │   │   │   ├── Decision.java             # Final status plus the reasons behind it
+│       │   │   │   ├── DecisionEngine.java       # Combines rules, ML score and velocity
+│       │   │   │   ├── DecisionInputs.java       # Everything the policy looks at
+│       │   │   │   ├── DecisionProperties.java   # fraudguard.decision.* settings
+│       │   │   │   └── MlSignal.java             # ML score as seen by the policy
+│       │   │   │
+│       │   │   ├── dto/                          # Request, response and event objects
+│       │   │   │   ├── FeedbackStatsDTO.java
+│       │   │   │   ├── LabeledTransactionDTO.java
+│       │   │   │   ├── MlScoreRequest.java
+│       │   │   │   ├── MlScoreResponse.java
+│       │   │   │   ├── PageResponseDTO.java
+│       │   │   │   ├── ReviewResponseDTO.java
+│       │   │   │   ├── RuleHit.java              # One fired rule: name, score, reason
+│       │   │   │   ├── TransactionDetailDTO.java
+│       │   │   │   ├── TransactionEvent.java     # Kafka event payload
+│       │   │   │   ├── TransactionRequestDTO.java
+│       │   │   │   ├── TransactionResponseDTO.java
+│       │   │   │   ├── TransactionSearchCriteria.java
+│       │   │   │   ├── TransactionStatusUpdateDTO.java
+│       │   │   │   ├── TransactionSummaryDTO.java
+│       │   │   │   └── VelocityFeatures.java     # Redis-derived behavioural features
+│       │   │   │
+│       │   │   ├── entity/                       # JPA entities and enums
+│       │   │   │   ├── AnalystReview.java
+│       │   │   │   ├── OutboxEvent.java          # Transactional outbox row
+│       │   │   │   ├── ReviewAction.java
+│       │   │   │   ├── ReviewState.java
+│       │   │   │   ├── RuleHitsConverter.java    # Stores fired rules in a database column
+│       │   │   │   ├── Transaction.java
+│       │   │   │   ├── TransactionStatus.java    # PENDING, APPROVED, REVIEW, BLOCKED
+│       │   │   │   └── TransactionType.java
+│       │   │   │
+│       │   │   ├── exception/
+│       │   │   │   ├── GlobalExceptionHandler.java
+│       │   │   │   ├── IdempotencyConflictException.java
+│       │   │   │   └── ResourceNotFoundException.java
+│       │   │   │
+│       │   │   ├── repository/
+│       │   │   │   ├── AnalystReviewRepository.java
+│       │   │   │   ├── OutboxEventRepository.java
+│       │   │   │   ├── TransactionRepository.java
+│       │   │   │   └── TransactionSpecifications.java  # Dynamic filters for the dashboard
+│       │   │   │
+│       │   │   ├── rules/                        # Rule engine
+│       │   │   │   ├── FraudRule.java            # Rule interface
+│       │   │   │   ├── HighVelocityRule.java
+│       │   │   │   ├── NewDeviceHighAmountRule.java
+│       │   │   │   ├── RapidCountryChangeRule.java
+│       │   │   │   ├── RiskAssessment.java       # Total score, hits and rule verdict
+│       │   │   │   ├── RuleEngine.java           # Runs all enabled rules
+│       │   │   │   ├── RuleProperties.java       # fraudguard.rules.* settings
+│       │   │   │   └── UnusualAmountRule.java
+│       │   │   │
+│       │   │   └── service/
+│       │   │       ├── FeedbackService.java      # Analyst labels for retraining
+│       │   │       ├── MlServiceClient.java      # ML call with timeout and circuit breaker
+│       │   │       ├── OutboxRelay.java          # Publishes outbox rows to Kafka
+│       │   │       ├── TransactionCacheService.java
+│       │   │       ├── TransactionEventConsumer.java   # Rules, ML, decision pipeline
+│       │   │       ├── TransactionService.java
+│       │   │       └── TransactionServiceImpl.java
+│       │   │
+│       │   └── resources/
+│       │       ├── application.yml               # Profiles: local (default), test
+│       │       ├── redis/
+│       │       │   └── record_transaction.lua    # Atomic velocity update in Redis
+│       │       └── db/migration/                 # Flyway migrations
+│       │           ├── V1__Create_transactions_table.sql
+│       │           ├── V2__Add_processed_event_id.sql
+│       │           ├── V3__Create_outbox_events_table.sql
+│       │           ├── V4__Add_rule_assessment.sql
+│       │           ├── V5__Add_anomaly_score_and_model_version.sql
+│       │           ├── V6__Add_decision_details.sql
+│       │           └── V7__Add_analyst_reviews.sql
+│       │
+│       └── test/java/com/fraudguard/
+│           ├── config/
+│           │   └── TestcontainersConfig.java     # Throwaway PostgreSQL, Kafka, Redis
+│           ├── controller/
+│           │   ├── TransactionControllerTest.java
+│           │   └── TransactionReviewApiTest.java
+│           ├── decision/
+│           │   └── DecisionEngineTest.java
+│           ├── rules/
+│           │   └── RuleEngineTest.java
+│           └── service/
+│               ├── FraudDecisionTest.java
+│               ├── MlScoringIntegrationTest.java
+│               ├── MlServiceClientTest.java
+│               ├── OutboxRelayTest.java
+│               ├── TransactionCacheServiceTest.java
+│               └── TransactionEventConsumerTest.java
+│
+├── ml-service/                                   # FastAPI ML scoring service
+│   ├── .dockerignore
+│   ├── Dockerfile
+│   ├── pytest.ini
+│   ├── requirements.txt
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── features.py                           # Feature engineering
+│   │   ├── main.py                               # FastAPI app: scoring and /health
+│   │   ├── model.py                              # Model loading and scoring
+│   │   └── schemas.py                            # Request and response schemas
+│   ├── data/
+│   │   └── feedback/
+│   │       └── labels-20261007-131900.json       # Sample analyst labels export
+│   ├── models/
+│   │   ├── isoforest-v1.joblib                   # Trained Isolation Forest
+│   │   ├── isoforest-v1.metrics.json             # Evaluation metrics
+│   │   └── registry.json                         # Model version registry
+│   ├── tests/
+│   │   ├── test_api.py
+│   │   ├── test_features.py
+│   │   └── test_training.py
+│   └── training/
+│       ├── build_dataset.py                      # Builds the training dataset
+│       ├── retrain.py                            # Retrains from analyst labels
+│       └── train.py                              # Initial synthetic-data training
+│
+├── frontend/                                     # React + TypeScript dashboard (Vite)
+│   ├── .gitignore
+│   ├── README.md
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── tsconfig.json
+│   ├── tsconfig.app.json
+│   ├── tsconfig.node.json
+│   ├── vite.config.ts
+│   ├── public/
+│   │   ├── favicon.svg
+│   │   └── icons.svg
+│   ├── scripts/
+│   │   └── seed-demo.mjs                         # Sends demo transactions
+│   └── src/
+│       ├── App.tsx
+│       ├── main.tsx
+│       ├── index.css
+│       ├── types.ts                              # Shared TypeScript types
+│       ├── components/
+│       │   ├── DecisionInputs.tsx                # Why a decision was made
+│       │   ├── DetailPanel.tsx
+│       │   ├── Filters.tsx
+│       │   ├── Pagination.tsx
+│       │   ├── ReviewActions.tsx                 # Analyst approve / block actions
+│       │   ├── StatusBadge.tsx
+│       │   ├── SummaryHeader.tsx
+│       │   └── TransactionTable.tsx
+│       ├── hooks/
+│       │   ├── useSummary.ts
+│       │   ├── useTransactionDetail.ts
+│       │   └── useTransactions.ts
+│       └── lib/
+│           ├── api.ts                            # Backend API client
+│           └── format.ts                         # Display formatting helpers
+│
+├── docs/
+│   ├── architecture.md
+│   ├── decision-policy.md                        # How policy-v1 decides
+│   └── feedback-loop.md                          # Analyst labels and retraining
+│
+└── infra/
+    └── .gitkeep
 ```
-
 ---
 
 ## How It Works
