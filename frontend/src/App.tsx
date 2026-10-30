@@ -7,6 +7,7 @@ import { useSummary } from './hooks/useSummary';
 import { useTransactions } from './hooks/useTransactions';
 import type { TransactionFilters } from './types';
 import { DetailPanel } from './components/DetailPanel';
+import { FeedbackPanel } from './components/FeedbackPanel';
 
 const PAGE_SIZE = 20;
 const REFRESH_MS = 10_000; // auto-refresh interval
@@ -45,7 +46,7 @@ export default function App() {
   return (
       <div className="app">
         <SummaryHeader summary={summary.data} error={summary.error} />
-
+        <FeedbackPanel refreshKey={refreshKey} />
         <main className="layout">
           <section className="list-pane">
             <Filters filters={filters} onChange={updateFilters} />

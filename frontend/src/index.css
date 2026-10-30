@@ -197,3 +197,31 @@ tbody tr.selected { background: #eaf0ff; }
 .json-key { color: var(--muted); }
 .json-key::after { content: ':'; }
 .detail-pane { max-height: calc(100vh - 32px); overflow-y: auto; }
+
+/* ---------- Model feedback card (Phase 9) ---------- */
+.feedback {
+  margin: 16px 24px 0;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.feedback h2 { font-size: 1rem; margin-bottom: 12px; }
+.feedback h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.feedback-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+@media (max-width: 1100px) { .feedback-grid { grid-template-columns: 1fr; } }
+.feedback dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0 0 8px; font-size: 0.875rem; }
+.feedback dt { color: var(--muted); }
+.feedback dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.feedback ul { margin: 0; padding-left: 18px; font-size: 0.85rem; }
+.feedback li { margin-bottom: 8px; }
+.feedback p { font-size: 0.85rem; margin-bottom: 8px; }
+.feedback .ok { color: var(--good); }
+.feedback .banner { margin-bottom: 8px; }
+.mini-table th, .mini-table td { padding: 5px 8px; font-size: 0.8rem; }

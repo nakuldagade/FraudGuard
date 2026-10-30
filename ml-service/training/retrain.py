@@ -12,7 +12,8 @@ READ BEFORE QUOTING ANY NUMBER:
   * Models are compared by PR-AUC, which depends only on how each model RANKS transactions, so it is
     fair across different score scales (anomaly score vs probability). It is measured on a held-out
     test slice that neither model was fitted or tuned on.
-  * Promotion changes the registry file only. The serving code starts using the registry in Part 9.3.
+  * Promotion edits models/registry.json. The running ML service picks the new model up on restart
+    or on POST /admin/reload.
 """
 import argparse
 import json
@@ -24,6 +25,7 @@ import joblib
 import numpy as np
 import sklearn
 from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import precision_recall_curve
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_sample_weight
 
@@ -43,15 +45,18 @@ MIN_LABELS = 60              # fewer labelled rows than this: refuse to train at
 MIN_PER_CLASS = 15           # need at least this many fraud AND legitimate examples
 MIN_PR_AUC_GAIN = 0.02       # challenger must beat the active model by this much on the test slice
 
+VERY_HIGH_PRECISION = 0.90   # "very high" cutoff: lowest threshold where >= 90% of flagged validation rows are fraud
+
 
 def load_registry() -> dict:
-    if REGISTRY.exists():
-        return json.loads(REGISTRY.read_text())
+    text = REGISTRY.read_text().strip() if REGISTRY.exists() else ""
+    if text:
+        return json.loads(text)
     return {"active": "isoforest-v1", "history": []}
 
 
 def score(bundle: dict, X) -> np.ndarray:
-    """Higher = more suspicious, for either kind of model."""
+    """Higher = more suspicious, for either kind of model (raw scale, before calibration)."""
     model = bundle["model"]
     if bundle.get("model_type") == "gradient_boosting":
         return model.predict_proba(X)[:, 1]          # probability of fraud
@@ -79,6 +84,21 @@ def require_both_classes(name: str, y) -> None:
         )
 
 
+def policy_calibration(y_val, s_val, review_raw: float) -> dict:
+    """Anchors that let the ML service express this model's scores on the scale the Java policy expects
+    (see app/model.py). Both come from VALIDATION data only.
+      review_raw    : the model's own review cutoff (best-F1 threshold)  -> maps to ml-review-at
+      very_high_raw : lowest threshold above it with precision >= 90%    -> maps to ml-very-high-at
+    """
+    review_raw = min(max(float(review_raw), 0.01), 0.97)
+    precision, _, thresholds = precision_recall_curve(y_val, s_val)
+    candidates = [t for p, t in zip(precision[:-1], thresholds)
+                  if p >= VERY_HIGH_PRECISION and t > review_raw]
+    very_high = min(candidates) if candidates else (review_raw + 1.0) / 2     # no such threshold: halfway up
+    very_high = min(max(float(very_high), review_raw + 0.01), 0.99)           # strictly above review, below 1
+    return {"review_raw": round(review_raw, 6), "very_high_raw": round(very_high, 6)}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--api", default="http://localhost:8080", help="backend base URL")
@@ -100,7 +120,7 @@ def main():
     if len(y) < MIN_LABELS or min(n_fraud, n_legit) < MIN_PER_CLASS:
         print(f"\nNot enough feedback to retrain safely. Need at least {MIN_LABELS} labelled rows and "
               f"{MIN_PER_CLASS} of each class. Review more transactions (or run the seed script with "
-              "--label, Part 9.4) and try again.")
+              "--label) and try again.")
         raise SystemExit(2)
 
     train, val, test = make_split(y, args.split)
@@ -131,6 +151,9 @@ def main():
 
     chal_eval, active_eval = evaluate_on_test(chal_bundle), evaluate_on_test(active_bundle)
 
+    # Anchors for expressing the challenger's scores on the Java policy's scale (validation data only)
+    calibration = policy_calibration(y[val], score(chal_bundle, X[val]), chal_eval["threshold"])
+
     # 5) Promotion decision
     gain = round(chal_eval["pr_auc"] - active_eval["pr_auc"], 4)
     passes = gain >= MIN_PR_AUC_GAIN
@@ -146,6 +169,7 @@ def main():
         "pr_auc_gain": gain,
         "required_gain": MIN_PR_AUC_GAIN,
         "passes_gate": passes,
+        "policy_calibration": calibration,
         "feature_importance": dict(sorted(
             zip(FEATURE_NAMES, challenger.feature_importances_.round(4).tolist()),
             key=lambda kv: -kv[1])),
@@ -156,6 +180,7 @@ def main():
     joblib.dump({
         "model": challenger,
         "model_type": "gradient_boosting",
+        "calibration": calibration,
         "model_version": version,
         "feature_schema_version": FEATURE_SCHEMA_VERSION,
         "feature_names": FEATURE_NAMES,
@@ -183,7 +208,8 @@ def main():
         })
         registry["active"] = version
         REGISTRY.write_text(json.dumps(registry, indent=2) + "\n")
-        print(f"PROMOTED: active model is now {version} (was {active_version})")
+        print(f"PROMOTED: active model is now {version} (was {active_version}).")
+        print("Make the running ML service use it:  curl -X POST http://localhost:8000/admin/reload")
     elif passes:
         print("Gate passed. Re-run with --promote to activate it.")
     else:

@@ -1,19 +1,26 @@
 // Fills the FraudGuard database with varied demo transactions by calling the
 // real API, so every row is decided by your actual rules, ML service and policy.
 //
-// Usage:   npm run seed              (create transactions)
-//          npm run seed -- --review  (also record a few analyst reviews)
+// Usage:   npm run seed                      (create transactions)
+//          npm run seed -- --review          (also record a few analyst reviews)
+//          npm run seed -- --label           (also label EVERY new row from its scenario's ground
+//                                             truth, as reviewer "demo-oracle": training data for Phase 9)
 // Needs:   backend on API_URL (default http://localhost:8080), Node 18+.
 // Tip:     start the ML service first, otherwise rows get ML_UNAVAILABLE.
 //
 // Why two phases: velocity and "unusual amount" rules depend on each account's
 // history, which the Kafka consumer builds asynchronously. So we first create
-// a normal history for every account, wait, then send the suspicious transaction.
+// a normal history for every account, wait, then send the interesting transaction.
+//
+// HONESTY NOTE: --label labels are SYNTHETIC. They come from the scenario that generated each row,
+// not from a human analyst, and real analysts would not label approved rows at all. They exist to
+// exercise the feedback loop, not to measure real-world accuracy.
 
 import { randomUUID } from 'node:crypto';
 
 const API = process.env.API_URL ?? 'http://localhost:8080';
 const WITH_REVIEWS = process.argv.includes('--review');
+const WITH_LABELS = process.argv.includes('--label');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rand = (min, max) => Math.random() * (max - min) + min;
@@ -55,39 +62,48 @@ async function send(tx) {
         return null;
     }
     consecutiveFailures = 0;
-    return res.json();
+    return res.json(); // includes the new transaction's id
 }
 
 // ---------- Scenario definitions ----------
-// Each scenario: how many accounts, how many baseline transactions, and a
+// Each scenario: how many accounts, how many baseline transactions (always legitimate), and a
 // function that sends the "interesting" transactions (run in phase 2).
+// fraudFinale = the ground truth for those interesting transactions (used by --label).
 // Baselines are 3 or fewer per account so they stay under the velocity limit.
 const scenarios = [
     { name: 'normal', accounts: 14, baseline: 4, finale: null },
     {
-        name: 'amount-spike', accounts: 5, baseline: 3,
+        name: 'amount-spike', accounts: 5, baseline: 3, fraudFinale: true,
         finale: (acc) => [{ accountId: acc.id, deviceId: acc.device, amount: money(4000, 20000) }],
     },
     {
-        name: 'moderate-spike', accounts: 5, baseline: 3,
+        // Hard negative: a bigger-than-usual purchase by the real customer. Labelled legitimate.
+        name: 'moderate-spike', accounts: 5, baseline: 3, fraudFinale: false,
         finale: (acc) => [{ accountId: acc.id, deviceId: acc.device, amount: money(900, 1600) }],
     },
     {
-        name: 'new-device-high-amount', accounts: 5, baseline: 3,
+        name: 'new-device-high-amount', accounts: 5, baseline: 3, fraudFinale: true,
         finale: (acc) => [{ accountId: acc.id, deviceId: `dev-new-${acc.id}`, amount: money(3000, 9000) }],
     },
     {
-        name: 'country-hop', accounts: 5, baseline: 3,
+        // Hard negative: the customer bought a new phone. New device, ordinary amount. Legitimate.
+        name: 'legit-new-device', accounts: 4, baseline: 3, fraudFinale: false,
+        finale: (acc) => [
+            { accountId: acc.id, deviceId: `dev-new-${acc.id}`, amount: money(acc.typical * 0.7, acc.typical * 1.3) },
+        ],
+    },
+    {
+        name: 'country-hop', accounts: 5, baseline: 3, fraudFinale: true,
         finale: (acc) => [{ accountId: acc.id, deviceId: acc.device, amount: money(200, 800), country: pick(FOREIGN) }],
     },
     {
-        name: 'velocity-burst', accounts: 4, baseline: 1,
+        name: 'velocity-burst', accounts: 4, baseline: 1, fraudFinale: true,
         // 7 quick small payments: trips the "more than 5 in 5 minutes" rule
         finale: (acc) =>
             Array.from({ length: 7 }, () => ({ accountId: acc.id, deviceId: acc.device, amount: money(80, 400) })),
     },
     {
-        name: 'combined', accounts: 4, baseline: 3,
+        name: 'combined', accounts: 4, baseline: 3, fraudFinale: true,
         finale: (acc) => [
             { accountId: acc.id, deviceId: `dev-new-${acc.id}`, amount: money(8000, 30000), country: pick(FOREIGN) },
         ],
@@ -120,18 +136,22 @@ async function main() {
         }
     }
 
-    // Phase 1: normal history, interleaved across accounts
+    // Ground truth for every transaction we create: { id, label (1 = fraud), scenario }
+    const truth = [];
+
+    // Phase 1: normal history, interleaved across accounts (always legitimate)
     console.log(`Phase 1: building history for ${accounts.length} accounts…`);
     let sent = 0;
     const maxBaseline = Math.max(...scenarios.map((s) => s.baseline));
     for (let round = 0; round < maxBaseline; round++) {
         for (const acc of accounts) {
             if (round >= acc.scenario.baseline) continue;
-            await send({
+            const created = await send({
                 accountId: acc.id,
                 deviceId: acc.device,
                 amount: money(acc.typical * 0.7, acc.typical * 1.3), // jitter so std dev is not zero
             });
+            if (created) truth.push({ id: created.id, label: 0, scenario: acc.scenario.name });
             sent++;
             await sleep(80);
         }
@@ -141,26 +161,70 @@ async function main() {
     console.log(`  ${sent} sent. Waiting 5 s for the pipeline to catch up…`);
     await sleep(5000);
 
-    // Phase 2: the suspicious (or normal) final transactions
+    // Phase 2: the suspicious (or deliberately innocent) final transactions
     console.log('Phase 2: sending the interesting transactions…');
     for (const acc of accounts) {
         if (!acc.scenario.finale) continue;
         for (const tx of acc.scenario.finale(acc)) {
-            await send(tx);
+            const created = await send(tx);
+            if (created) {
+                truth.push({ id: created.id, label: acc.scenario.fraudFinale ? 1 : 0, scenario: acc.scenario.name });
+            }
             sent++;
             await sleep(velocityGap(acc.scenario.name));
         }
     }
 
-    console.log(`Done: ${sent} transactions sent. Waiting 5 s for decisions…`);
-    await sleep(5000);
+    // Wait until the pipeline has decided every transaction we created
+    console.log(`Done: ${sent} transactions sent. Waiting for decisions…`);
+    const undecided = await waitForDecisions(truth.map((t) => t.id));
+    if (undecided > 0) console.warn(`  ${undecided} transactions are still PENDING (pipeline slow or stopped?)`);
 
     if (WITH_REVIEWS) await recordSomeReviews();
+    if (WITH_LABELS) await labelEverything(truth);
     await printSummary();
 }
 
 // Bursts must be quick to trip the velocity rule; everything else can be gentle
 const velocityGap = (name) => (name === 'velocity-burst' ? 30 : 100);
+
+// Polls until none of the given transactions is PENDING (or the timeout passes).
+// Returns how many are still undecided. Labels must wait for this: the decision snapshot that the
+// trainer reads is only stored once a transaction has been decided.
+async function waitForDecisions(ids, timeoutMs = 90_000) {
+    const pending = new Set(ids);
+    const deadline = Date.now() + timeoutMs;
+    while (pending.size > 0 && Date.now() < deadline) {
+        for (const id of [...pending]) {
+            const res = await fetch(`${API}/api/transactions/${id}`).catch(() => null);
+            if (res && res.ok) {
+                const t = await res.json();
+                if (t.status !== 'PENDING') pending.delete(id);
+            }
+        }
+        if (pending.size > 0) await sleep(1500);
+    }
+    return pending.size;
+}
+
+// POST one analyst review; retries on 429 (rate limit). Returns true on success.
+async function postReview(id, body) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await fetch(`${API}/api/transactions/${id}/review`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (res.ok) return true;
+        if (res.status === 429) {
+            await sleep(1000 * (attempt + 1));
+            continue;
+        }
+        console.error(`  ! review ${res.status} for ${id}: ${await res.text().catch(() => '')}`);
+        return false;
+    }
+    return false;
+}
 
 // Optional: act on a few REVIEW/BLOCKED rows so the review history has content
 async function recordSomeReviews() {
@@ -175,12 +239,27 @@ async function recordSomeReviews() {
     ];
     for (const [i, t] of page.content.slice(0, 6).entries()) {
         const [action, note] = actions[i % actions.length];
-        await fetch(`${API}/api/transactions/${t.id}/review`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, note, reviewer: 'demo-analyst' }),
-        });
+        await postReview(t.id, { action, note, reviewer: 'demo-analyst' });
     }
+}
+
+// --label: record the scenario's ground truth as the analyst verdict for every transaction.
+// Runs after --review, so these (newer) reviews win: the newest review is the label.
+async function labelEverything(truth) {
+    console.log(`Labelling ${truth.length} transactions from scenario ground truth (reviewer demo-oracle)…`);
+    let ok = 0;
+    for (const t of truth) {
+        const action = t.label === 1 ? 'CONFIRM_FRAUD' : 'MARK_LEGITIMATE';
+        const done = await postReview(t.id, {
+            action,
+            reviewer: 'demo-oracle',
+            note: `Synthetic ground truth: ${t.scenario}`,
+        });
+        if (done) ok++;
+        await sleep(30);
+    }
+    const fraud = truth.filter((t) => t.label === 1).length;
+    console.log(`  ${ok}/${truth.length} labelled (${fraud} fraud, ${truth.length - fraud} legitimate)`);
 }
 
 async function printSummary() {
@@ -191,6 +270,11 @@ async function printSummary() {
     console.log(`  total ${s.total}, awaiting analyst ${s.awaitingReview}`);
     console.log('  by decision:', s.byStatus);
     console.log('  by review state:', s.byReviewState);
+
+    if (WITH_LABELS) {
+        const f = await fetch(`${API}/api/feedback/stats`);
+        if (f.ok) console.log('  feedback labels:', await f.json());
+    }
 }
 
 main().catch((e) => {
