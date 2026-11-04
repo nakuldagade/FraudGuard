@@ -120,17 +120,30 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional(readOnly = true)
     public TransactionSummaryDTO summary() {
+        // Every status and review state is listed, with 0 when there are none
         Map<String, Long> byStatus = new LinkedHashMap<>();
         for (TransactionStatus status : TransactionStatus.values()) {
-            byStatus.put(status.name(), repository.countByStatus(status));
+            byStatus.put(status.name(), 0L);
         }
         Map<String, Long> byReviewState = new LinkedHashMap<>();
         for (ReviewState state : ReviewState.values()) {
-            byReviewState.put(state.name(), repository.countByReviewState(state));
+            byReviewState.put(state.name(), 0L);
         }
-        long awaitingReview = repository.countByStatusInAndReviewState(
-                List.of(TransactionStatus.REVIEW, TransactionStatus.BLOCKED), ReviewState.UNREVIEWED);
-        return new TransactionSummaryDTO(repository.count(), awaitingReview, byStatus, byReviewState);
+        long total = 0;
+        long awaitingReview = 0;   // REVIEW or BLOCKED that no analyst has acted on yet
+        for (Object[] row : repository.countByStatusAndReviewState()) {
+            TransactionStatus status = (TransactionStatus) row[0];
+            ReviewState state = (ReviewState) row[1];
+            long count = ((Number) row[2]).longValue();
+            byStatus.merge(status.name(), count, Long::sum);
+            byReviewState.merge(state.name(), count, Long::sum);
+            total += count;
+            if ((status == TransactionStatus.REVIEW || status == TransactionStatus.BLOCKED)
+                    && state == ReviewState.UNREVIEWED) {
+                awaitingReview += count;
+            }
+        }
+        return new TransactionSummaryDTO(total, awaitingReview, byStatus, byReviewState);
     }
 
     // NEW: the detail screen: transaction + stored decision inputs + review history

@@ -8,8 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> {
 
     // Spring builds the query from the name: unsent rows (published_at IS NULL),
-    // oldest first, at most 50 per round.
-    List<OutboxEvent> findTop50ByPublishedAtIsNullOrderByCreatedAtAsc();
+    // oldest first, at most 500 per round (was 50: that capped throughput near 50 events/s, see docs/performance.md).
+    List<OutboxEvent> findTop500ByPublishedAtIsNullOrderByCreatedAtAsc();
 
     // Used by tests to find the outbox rows belonging to one transaction
     List<OutboxEvent> findByAggregateId(UUID aggregateId);

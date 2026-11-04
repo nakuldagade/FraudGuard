@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fraudguard.local/contracts/ml-score.schema.json",
+  "title": "FraudGuard ML scoring contract (POST /score)",
+  "description": "The one agreed shape between the Java backend (MlScoreRequest / MlScoreResponse) and the Python ML service (ScoreRequest / ScoreResponse). Both sides test against this file; change it first, then both sides.",
+  "$defs": {
+    "ScoreRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transaction_id", "amount", "hour_of_day", "transaction_count_5m", "transaction_count_1h",
+                   "history_count", "average_amount", "amount_z_score", "seconds_since_previous",
+                   "new_device", "new_merchant", "country_changed"],
+      "properties": {
+        "transaction_id": {"type": "string", "minLength": 1, "maxLength": 64},
+        "amount": {"type": "number", "exclusiveMinimum": 0},
+        "hour_of_day": {"type": "integer", "minimum": 0, "maximum": 23},
+        "transaction_count_5m": {"type": "integer", "minimum": 0},
+        "transaction_count_1h": {"type": "integer", "minimum": 0},
+        "history_count": {"type": "integer", "minimum": 0},
+        "average_amount": {"type": "number", "minimum": 0},
+        "amount_z_score": {"type": ["number", "null"]},
+        "seconds_since_previous": {"type": ["integer", "null"], "minimum": 0},
+        "new_device": {"type": "boolean"},
+        "new_merchant": {"type": "boolean"},
+        "country_changed": {"type": "boolean"}
+      }
+    },
+    "ScoreResponse": {
+      "type": "object",
+      "required": ["transaction_id", "anomaly_score", "model_version", "feature_schema_version"],
+      "properties": {
+        "transaction_id": {"type": "string"},
+        "anomaly_score": {"type": "number", "description": "Higher = more unusual. NOT a probability of fraud."},
+        "model_version": {"type": "string", "minLength": 1},
+        "feature_schema_version": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "examples": {
+    "request": {
+      "transaction_id": "t-1", "amount": 5000.0, "hour_of_day": 14, "transaction_count_5m": 7,
+      "transaction_count_1h": 7, "history_count": 6, "average_amount": 98.5, "amount_z_score": 2619.96,
+      "seconds_since_previous": 5, "new_device": true, "new_merchant": true, "country_changed": true
+    },
+    "requestFirstEverTransaction": {
+      "transaction_id": "t-2", "amount": 10.0, "hour_of_day": 3, "transaction_count_5m": 1,
+      "transaction_count_1h": 1, "history_count": 0, "average_amount": 0, "amount_z_score": null,
+      "seconds_since_previous": null, "new_device": true, "new_merchant": true, "country_changed": false
+    },
+    "response": {
+      "transaction_id": "t-1", "anomaly_score": 0.81, "model_version": "isoforest-v1", "feature_schema_version": "1"
+    }
+  }
+}

@@ -18,6 +18,8 @@ a plain-English explanation, and a JSON snapshot of every input (`transactions.d
 | REVIEW | REVIEW | REVIEW | **BLOCKED** |
 | BLOCKED | BLOCKED | BLOCKED | BLOCKED |
 
+_This table is enforced by `DecisionEngineTest.policyTable` (all 15 rule x ML combinations, plus the threshold boundaries). Changing the policy without updating that test fails the build._
+
 - ML alone can send a clean transaction to review but **never blocks**.
 - If the ML service is unavailable (down, slow, disabled), the rules decide alone and the decision
   records `ML_UNAVAILABLE`.

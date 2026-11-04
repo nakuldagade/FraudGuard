@@ -1,0 +1,15 @@
+# Test-only values (these are not real secrets). Loaded together with the "test" profile in application.yml.
+fraudguard:
+  security:
+    jwt-secret: test-only-jwt-secret-0123456789-abcdefghij
+    ingest-api-keys: test-ingest-key
+    metrics-password: test-metrics-password
+    admin-username: test-admin
+    admin-password: test-admin-password
+    analyst-username: test-analyst
+    analyst-password: test-analyst-password
+    seed-username: test-oracle
+    seed-password: test-oracle-password
+  ml:
+    service-token: test-service-token
+    admin-token: test-admin-token

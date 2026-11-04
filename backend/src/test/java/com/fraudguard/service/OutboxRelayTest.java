@@ -30,7 +30,7 @@ class OutboxRelayTest {
     void publishesPendingEventsAndMarksThemPublished() {
         OutboxEvent first = outboxEvent("acc-1");
         OutboxEvent second = outboxEvent("acc-2");
-        when(repository.findTop50ByPublishedAtIsNullOrderByCreatedAtAsc()).thenReturn(List.of(first, second));
+        when(repository.findTop500ByPublishedAtIsNullOrderByCreatedAtAsc()).thenReturn(List.of(first, second));
         when(kafkaTemplate.send(anyString(), anyString(), anyString()))
                 .thenReturn(CompletableFuture.completedFuture(null));   // Kafka says "stored"
 
@@ -44,7 +44,7 @@ class OutboxRelayTest {
     void kafkaOutageLeavesEventsPendingUntilKafkaIsBack() {
         OutboxEvent first = outboxEvent("acc-1");
         OutboxEvent second = outboxEvent("acc-2");
-        when(repository.findTop50ByPublishedAtIsNullOrderByCreatedAtAsc()).thenReturn(List.of(first, second));
+        when(repository.findTop500ByPublishedAtIsNullOrderByCreatedAtAsc()).thenReturn(List.of(first, second));
 
         // Round 1: Kafka is down
         when(kafkaTemplate.send(anyString(), anyString(), anyString()))
@@ -53,8 +53,8 @@ class OutboxRelayTest {
 
         assertThat(first.getPublishedAt()).isNull();    // nothing was marked as sent...
         assertThat(second.getPublishedAt()).isNull();
-        // ...and the relay gave up after the first failure instead of skipping ahead (keeps order)
-        verify(kafkaTemplate, times(1)).send(anyString(), anyString(), anyString());
+        // (the whole batch was handed to Kafka together, and none of it was confirmed)
+        verify(kafkaTemplate, times(2)).send(anyString(), anyString(), anyString());
 
         // Round 2: Kafka is back, the same rows are picked up again
         when(kafkaTemplate.send(anyString(), anyString(), anyString()))
@@ -63,6 +63,38 @@ class OutboxRelayTest {
 
         assertThat(first.getPublishedAt()).isNotNull();
         assertThat(second.getPublishedAt()).isNotNull();
+    }
+
+    @Test
+    void failureMidBatchMarksOnlyTheEventsBeforeIt() {
+        OutboxEvent a = outboxEvent("acc-1");
+        OutboxEvent b = outboxEvent("acc-2");
+        OutboxEvent c = outboxEvent("acc-3");
+        when(repository.findTop500ByPublishedAtIsNullOrderByCreatedAtAsc()).thenReturn(List.of(a, b, c));
+        when(kafkaTemplate.send(anyString(), anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture(null))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("lost")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        relay.publishPending();
+
+        assertThat(a.getPublishedAt()).isNotNull();
+        assertThat(b.getPublishedAt()).isNull();    // failed: retried next round
+        assertThat(c.getPublishedAt()).isNull();    // after the failure: also retried, so order is kept
+    }
+
+    @Test
+    void synchronousSendFailureStopsHandingOverMoreEvents() {
+        OutboxEvent a = outboxEvent("acc-1");
+        OutboxEvent b = outboxEvent("acc-2");
+        when(repository.findTop500ByPublishedAtIsNullOrderByCreatedAtAsc()).thenReturn(List.of(a, b));
+        when(kafkaTemplate.send(anyString(), anyString(), anyString())).thenThrow(new RuntimeException("max.block.ms exceeded"));
+
+        relay.publishPending();
+
+        assertThat(a.getPublishedAt()).isNull();
+        assertThat(b.getPublishedAt()).isNull();
+        verify(kafkaTemplate, times(1)).send(anyString(), anyString(), anyString());   // did not block 5 s per event
     }
 
     private static OutboxEvent outboxEvent(String key) {

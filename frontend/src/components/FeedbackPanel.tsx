@@ -63,7 +63,7 @@ export function FeedbackPanel({ refreshKey }: { refreshKey: number }) {
             <div className="banner error">
               The registry says <strong>{registry.active}</strong> but the service is serving{' '}
               <strong>{registry.loaded}</strong>. Reload it:{' '}
-              <code>curl -X POST http://127.0.0.1:8000/admin/reload</code>
+              <code>curl -X POST http://127.0.0.1:8000/admin/reload -H "X-Admin-Token: $ADMIN_TOKEN"</code>
             </div>
           )}
           {registryError && <p className="muted">Live model unknown: ML service unreachable.</p>}

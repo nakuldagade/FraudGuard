@@ -2,7 +2,23 @@
 
 All notable changes. FraudGuard runs on synthetic demo data and is not production-grade.
 
-## Unreleased: Phase 10 (reliability, observability, security)
+## Unreleased: Phase 11 (testing and performance)
+
+### Added
+- **Coverage gates.** JaCoCo in Maven (`mvn verify` fails below 70% overall or 85% in `rules` and `decision`; measured 94.6%),
+  `pytest-cov` for the ML service (85% of `app/`; measured 95%), Vitest coverage for the frontend (93.5%).
+- **Tests.** Redis-outage integration test (Testcontainers pause, then dead-letter, then re-drive), Java and Python contract tests
+  against `contracts/ml-score.schema.json`, 22 frontend component tests (Vitest, Testing Library, MSW), a Playwright smoke test.
+- **Performance.** k6 load tests in `perf/` (ingestion, end to end, read path on 100k rows, 30-minute soak), a 100k-row seed script,
+  `docs/performance.md` and `docs/testing.md`.
+
+### Changed
+- **Outbox relay is batched** (500 per round, async sends, 200 ms poll). End-to-end p95 at 50 req/s went from 12.8 s to 0.23 s.
+- Kafka listener concurrency set to 3 (one thread per partition).
+- `V9__status_review_index.sql`: composite `(status, review_state)` index replaces the `status` index.
+- The summary endpoint uses one grouped query instead of about 11 counts.
+
+## Phase 10 (reliability, observability, security)
 
 ### Added
 - **Reliability.** Gauge `fraudguard.transactions.stuck.pending`; `POST /api/admin/transactions/redrive-pending`

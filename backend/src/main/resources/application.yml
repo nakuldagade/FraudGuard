@@ -20,6 +20,8 @@ spring:
       properties:
         enable.idempotence: true   # the producer never writes the same message twice on retry
         max.block.ms: 5000         # if Kafka is down, fail after 5s instead of hanging the API for 60s
+    listener:
+      concurrency: 3                               # one consumer thread per partition of transactions.raw (3)
     consumer:
       group-id: fraudguard-transaction-processor   # consumers in one group share the work
       auto-offset-reset: earliest                  # a brand-new group starts from the oldest message

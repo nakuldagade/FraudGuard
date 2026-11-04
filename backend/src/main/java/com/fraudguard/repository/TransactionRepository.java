@@ -28,6 +28,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     long countByStatusInAndReviewState(Collection<TransactionStatus> statuses, ReviewState reviewState);
 
+    // Phase 11: the whole summary from ONE query (it used to run about 11 separate counts).
+    // Each row is [status, reviewState, count].
+    @Query("select t.status, t.reviewState, count(t) from Transaction t group by t.status, t.reviewState")
+    List<Object[]> countByStatusAndReviewState();
+
     // Phase 9: how many transactions each model version scored, and when it last scored one.
     // Each row is [modelVersion, count, lastCreatedAt]. Transactions without a score are excluded here.
     @Query("""
