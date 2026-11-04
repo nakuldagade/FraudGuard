@@ -1,0 +1,106 @@
+# Alert rules. No Alertmanager: alerts show at http://localhost:9090/alerts (see docs/observability.md).
+# Every alert has a one-line summary and a runbook link. Thresholds are demo-sized, not tuned for production.
+groups:
+  - name: fraudguard
+    rules:
+      - alert: BackendDown
+        expr: up{job="fraudguard-backend"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "FraudGuard backend is not reachable by Prometheus"
+          runbook: "docs/observability.md#backenddown"
+
+      - alert: PipelineLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le) (rate(fraudguard_pipeline_latency_seconds_bucket[5m]))) > 5
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "p95 time from API acceptance to decision is above 5 s"
+          runbook: "docs/observability.md#pipelinelatencyhigh"
+
+      # Fires immediately on any dead-lettered event; critical when more than 10 arrive in 10 minutes.
+      - alert: DlqEventsDetected
+        expr: increase(fraudguard_dlq_events_total[10m]) > 0
+        for: 0m
+        labels: {severity: warning}
+        annotations:
+          summary: "Events were dead-lettered ({{ $labels.cause }})"
+          runbook: "docs/observability.md#dlqeventsdetected"
+      - alert: DlqEventsDetected
+        expr: increase(fraudguard_dlq_events_total[10m]) > 10
+        for: 0m
+        labels: {severity: critical}
+        annotations:
+          summary: "More than 10 events dead-lettered in 10 minutes ({{ $labels.cause }})"
+          runbook: "docs/observability.md#dlqeventsdetected"
+
+      - alert: ConsumerErrors
+        expr: rate(fraudguard_event_processing_seconds_count{outcome="error"}[5m]) > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "The Kafka consumer keeps hitting errors"
+          runbook: "docs/observability.md#consumererrors"
+
+      - alert: OutboxBacklog
+        expr: fraudguard_outbox_pending > 100
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 100 events are waiting to be published to Kafka"
+          runbook: "docs/observability.md#outboxbacklog"
+
+      - alert: TransactionsStuckPending
+        expr: fraudguard_transactions_stuck_pending > 0
+        for: 3m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $value }} transactions are stuck in PENDING"
+          runbook: "docs/observability.md#transactionsstuckpending"
+
+      - alert: MlCircuitOpen
+        expr: fraudguard_ml_circuit_open == 1
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "ML circuit breaker is open: decisions are rules-only"
+          runbook: "docs/observability.md#mlcircuitopen"
+
+      - alert: MlFailureRatioHigh
+        expr: >-
+          sum(rate(fraudguard_ml_calls_total{outcome="failure"}[5m]))
+          / clamp_min(sum(rate(fraudguard_ml_calls_total{outcome=~"success|failure"}[5m])), 0.001) > 0.2
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 20% of ML calls are failing"
+          runbook: "docs/observability.md#mlfailureratiohigh"
+
+      - alert: BlockRateAnomalous
+        expr: >-
+          sum(increase(fraudguard_decisions_total{status="BLOCKED"}[15m]))
+          / clamp_min(sum(increase(fraudguard_decisions_total[15m])), 1) > 0.30
+        for: 15m
+        labels: {severity: info}
+        annotations:
+          summary: "More than 30% of decisions were BLOCKED over the last 15 minutes"
+          runbook: "docs/observability.md#blockrateanomalous"
+
+      - alert: Http5xxRate
+        expr: >-
+          sum(rate(http_server_requests_seconds_count{application="fraudguard", status=~"5.."}[5m]))
+          / clamp_min(sum(rate(http_server_requests_seconds_count{application="fraudguard"}[5m])), 0.001) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 5% of HTTP requests return 5xx"
+          runbook: "docs/observability.md#http5xxrate"
+
+      - alert: HikariSaturation
+        expr: hikaricp_connections_pending > 0
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "Requests are waiting for a database connection"
+          runbook: "docs/observability.md#hikarisaturation"

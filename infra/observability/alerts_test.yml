@@ -1,0 +1,83 @@
+# Unit tests for alerts.yml.  Run: see docs/observability.md ("Checking the alert rules")
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    name: BackendDown fires after one minute of up == 0
+    input_series:
+      - series: 'up{job="fraudguard-backend", instance="host.docker.internal:8080"}'
+        values: "1 1 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: BackendDown
+        exp_alerts: []                    # down for under a minute: still pending
+      - eval_time: 4m
+        alertname: BackendDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: fraudguard-backend, instance: "host.docker.internal:8080"}
+            exp_annotations:
+              summary: "FraudGuard backend is not reachable by Prometheus"
+              runbook: "docs/observability.md#backenddown"
+
+  - interval: 1m
+    name: DlqEventsDetected is a warning for one event and critical above ten
+    input_series:
+      - series: 'fraudguard_dlq_events_total{cause="IllegalArgumentException"}'
+        values: "0 0 1 1 1 1"
+      - series: 'fraudguard_dlq_events_total{cause="IllegalStateException"}'
+        values: "0 0 0 20 20 20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DlqEventsDetected
+        exp_alerts:
+          - exp_labels: {severity: warning, cause: IllegalArgumentException}
+            exp_annotations:
+              summary: "Events were dead-lettered (IllegalArgumentException)"
+              runbook: "docs/observability.md#dlqeventsdetected"
+          - exp_labels: {severity: warning, cause: IllegalStateException}
+            exp_annotations:
+              summary: "Events were dead-lettered (IllegalStateException)"
+              runbook: "docs/observability.md#dlqeventsdetected"
+          - exp_labels: {severity: critical, cause: IllegalStateException}
+            exp_annotations:
+              summary: "More than 10 events dead-lettered in 10 minutes (IllegalStateException)"
+              runbook: "docs/observability.md#dlqeventsdetected"
+
+  - interval: 1m
+    name: MlCircuitOpen fires only after two minutes open
+    input_series:
+      - series: 'fraudguard_ml_circuit_open{application="fraudguard"}'
+        values: "0 1 1 1 1 0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: MlCircuitOpen
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: MlCircuitOpen
+        exp_alerts:
+          - exp_labels: {severity: warning, application: fraudguard}
+            exp_annotations:
+              summary: "ML circuit breaker is open: decisions are rules-only"
+              runbook: "docs/observability.md#mlcircuitopen"
+      - eval_time: 5m
+        alertname: MlCircuitOpen
+        exp_alerts: []
+
+  - interval: 1m
+    name: TransactionsStuckPending is critical after three minutes
+    input_series:
+      - series: 'fraudguard_transactions_stuck_pending{application="fraudguard"}'
+        values: "0 2 2 2 2 2"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: TransactionsStuckPending
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: TransactionsStuckPending
+        exp_alerts:
+          - exp_labels: {severity: critical, application: fraudguard}
+            exp_annotations:
+              summary: "2 transactions are stuck in PENDING"
+              runbook: "docs/observability.md#transactionsstuckpending"
