@@ -8,16 +8,19 @@ transactions, labels them, retrains, promotes the new model and loads it. Then o
 
 | Tab | URL | Login |
 |---|---|---|
-| Dashboard | http://localhost:8081 | `analyst` / password from `.env` |
+| Dashboard | http://localhost:8081 | no typing needed: click **Sign in as Analyst** (or **Admin**) on the login page, which lists the demo credentials |
 | Grafana | http://localhost:3000 → *FraudGuard Overview* | `admin` / `GRAFANA_ADMIN_PASSWORD` |
 | Prometheus alerts | http://localhost:9090/alerts | none |
 | API docs | http://localhost:8080/swagger-ui/index.html | none |
 
 Have one terminal ready in the project folder with `.env` loaded (`set -a; source .env; set +a`).
 
+## 0. The first impression (20 s)
+Open the dashboard: the sign-in page shows both demo accounts with their credentials. Click **Sign in as Analyst**. Point at the KPI cards (numbers count up), the **Activity** chart (transactions per hour, hover a column), the **Decisions** donut and the **Analyst verdicts** bars. Use the moon icon to switch to the dark theme.
+
 ## 1. The normal flow (60 s)
 *Say:* "A payment arrives, is acknowledged at once, and is decided in the background by rules plus an ML score."
-1. Dashboard, filter **Decision = Review**. Click the top transaction.
+1. Dashboard, filter **Decision = Review**. Click the top transaction: the details slide in from the right (Esc or the X closes them).
 2. Point at the **explanation** ("Rules scored 40/100 (HIGH_VELOCITY)... ML anomaly score ... in the normal range"), the **rule hits**, the **ML score and model**, and **Decision inputs**. "Every decision keeps the numbers it was based on."
 3. "ML alone can send a clean transaction to review but never blocks. See `docs/decision-policy.md`."
 

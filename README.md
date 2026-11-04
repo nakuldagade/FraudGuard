@@ -15,6 +15,14 @@ feeds their verdicts back into retraining the model.
 
 ![The analyst dashboard](docs/images/dashboard.png)
 
+<details><summary>More screenshots: sign-in with demo accounts, dark theme, details drawer</summary>
+
+![Sign-in page with one-click demo accounts](docs/images/login.png)
+![Dark theme](docs/images/dashboard-dark.png)
+![Transaction details drawer](docs/images/drawer.png)
+
+</details>
+
 ## What it shows
 
 - **Event-driven pipeline** with a transactional outbox: the API answers `202` immediately, nothing is lost if Kafka is down.
@@ -51,7 +59,7 @@ Then open:
 
 | What | URL | Login |
 |---|---|---|
-| Analyst dashboard | http://localhost:8081 | `analyst` and the password from `.env` |
+| Analyst dashboard | http://localhost:8081 | click **Sign in as Analyst** or **Admin** on the login page (the demo credentials are listed there) |
 | Grafana | http://localhost:3000 | `admin` and `GRAFANA_ADMIN_PASSWORD` |
 | Prometheus alerts | http://localhost:9090/alerts | none |
 | API docs (Swagger UI) | http://localhost:8080/swagger-ui/index.html | none |
@@ -99,7 +107,7 @@ Metrics, the dashboard, the alert table with a runbook per alert, and the record
 
 ## Tests and performance
 
-139 backend tests (94.6% line coverage, gated), 45 ML tests (95% of the serving code, gated), 22 frontend tests plus an end-to-end smoke
+142 backend tests (94.6% line coverage, gated), 45 ML tests (95% of the serving code, gated), 35 frontend tests plus an end-to-end smoke
 test. How to run them: [docs/testing.md](docs/testing.md).
 
 Measured on one laptop with synthetic traffic ([docs/performance.md](docs/performance.md) has the method and caveats):
@@ -130,6 +138,7 @@ docs/          Architecture, ADRs, policy, observability, testing, performance, 
 
 - **Synthetic data and labels.** Nothing here measures real fraud. The demo's "fraud" is whatever the data generator produces.
 - **Not production-grade.** Single Kafka broker, no replication, one PostgreSQL, secrets in a `.env` file, demo passwords in `.env.example`.
+- **Demo logins are public on purpose.** The sign-in page lists the demo usernames and passwords for quick demos. They are compiled into the frontend, so anyone who can open the page can read them; set `SHOW_DEMO_LOGINS=false` in `.env` and rebuild the frontend to hide them.
 - **Auth is basic.** JWT tokens cannot be revoked before they expire, there are no refresh tokens, the dashboard keeps its token in `sessionStorage`, and the login rate limit is in memory and per IP (behind a proxy all users share one address).
 - **Alerts are only visible in the Prometheus UI.** No Alertmanager, nothing is sent to anyone, and thresholds are untuned.
 - **Retraining is manual** and re-drive of stuck transactions is manual. There is no drift monitoring.

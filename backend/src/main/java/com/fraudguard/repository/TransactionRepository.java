@@ -28,6 +28,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     long countByStatusInAndReviewState(Collection<TransactionStatus> statuses, ReviewState reviewState);
 
+    // Dashboard chart: transactions per hour and status since a point in time. Each row is [hour, status, count].
+    // Native SQL. The hour is computed from epoch seconds, so it is a UTC hour whatever the database session's
+    // time zone is (date_trunc would cut at the session's local hour, e.g. :30 past in India). Uses created_at.
+    @Query(value = """
+            select cast(floor(extract(epoch from created_at) / 3600) * 3600 as bigint) as hour_epoch, status, count(*) as n
+            from transactions where created_at >= :since
+            group by 1, 2 order by 1
+            """, nativeQuery = true)
+    List<Object[]> hourlyStatusCounts(@org.springframework.data.repository.query.Param("since") Instant since);
+
     // Phase 11: the whole summary from ONE query (it used to run about 11 separate counts).
     // Each row is [status, reviewState, count].
     @Query("select t.status, t.reviewState, count(t) from Transaction t group by t.status, t.reviewState")

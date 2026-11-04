@@ -17,6 +17,10 @@ Phases 10 and 11 and `git log` for the earlier phases.
 - **Documentation.** New README, rewritten architecture doc with diagrams, nine ADRs, demo script, portfolio material, publish checklist, screenshots.
 - MIT licence.
 
+- **Dashboard redesign.** Light and dark themes (remembers your choice), animated KPI cards, activity / decisions / verdicts charts (hand-built SVG),
+  a details drawer that opens only when a transaction is selected, collapsible Model feedback card, toasts, skeleton loaders, a new sign-in page with
+  one-click demo accounts for the Analyst and Admin roles (`SHOW_DEMO_LOGINS=false` hides them), and `GET /api/transactions/trend` for the activity chart.
+
 ### Changed
 - ML model files, the registry and feedback exports are no longer tracked in git (the Docker build and `python training/train.py` create `isoforest-v1`).
 - Frontend port in Docker is 8081 (3000 is Grafana). `FRONTEND_PORT` in `.env.example` changed to match.

@@ -11,6 +11,7 @@ import com.fraudguard.dto.TransactionResponseDTO;
 import com.fraudguard.dto.TransactionSearchCriteria;
 import com.fraudguard.dto.TransactionStatusUpdateDTO;
 import com.fraudguard.dto.TransactionSummaryDTO;
+import com.fraudguard.dto.TrendPointDTO;
 import com.fraudguard.entity.ReviewState;
 import com.fraudguard.entity.TransactionStatus;
 import com.fraudguard.service.TransactionService;
@@ -82,6 +83,14 @@ public class TransactionController {
     @GetMapping("/summary")
     public TransactionSummaryDTO summary() {
         return service.summary();
+    }
+
+    // GET /api/transactions/trend?hours=24: transactions per hour by decision, for the dashboard chart
+    @Operation(summary = "Hourly activity by decision", description = "One point per hour for the last N hours (1 to 168, default 24), zeros included.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @GetMapping("/trend")
+    public List<TrendPointDTO> trend(@RequestParam(defaultValue = "24") int hours) {
+        return service.trend(hours);
     }
 
     // GET /api/transactions/{id}

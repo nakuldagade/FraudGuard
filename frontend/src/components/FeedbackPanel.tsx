@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useFeedback } from '../hooks/useFeedback';
 import { formatDateTime } from '../lib/format';
+import { ChevronIcon } from './Icons';
 
 // Retraining needs at least this much feedback. KEEP IN SYNC with MIN_LABELS / MIN_PER_CLASS in
 // ml-service/training/retrain.py (the script is the real gate; this card only shows progress).
@@ -8,6 +10,7 @@ const MIN_PER_CLASS = 15;
 
 export function FeedbackPanel({ refreshKey }: { refreshKey: number }) {
   const { stats, usage, registry, error, registryError } = useFeedback(refreshKey);
+  const [open, setOpen] = useState(false); // collapsed by default: the header already shows the essentials
 
   const ready =
     !!stats &&
@@ -19,11 +22,22 @@ export function FeedbackPanel({ refreshKey }: { refreshKey: number }) {
   const promotions = registry ? [...registry.history].reverse() : [];
 
   return (
-    <section className="feedback">
-      <h2>Model feedback</h2>
+    <section className="card feedback">
+      <div className="feedback-head">
+        <h2>Model feedback</h2>
+        <div className="feedback-summary">
+          {registry && <span className="badge status-approved" title="Model serving now">Live: {registry.loaded}</span>}
+          {registryError && <span className="badge">Live model unknown</span>}
+          {stats && <span className={`badge ${ready ? 'status-approved' : ''}`}>{stats.usableLabels} labels{ready ? ' · ready to retrain' : ''}</span>}
+        </div>
+        <button type="button" className="btn ghost sm" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {open ? 'Hide details' : 'Show details'} <ChevronIcon className={`chev ${open ? 'up' : ''}`} width={14} height={14} />
+        </button>
+      </div>
 
       {error && <div className="banner error">Could not load feedback data: {error}</div>}
 
+      <div className={`collapse ${open ? 'open' : ''}`}><div className="collapse-inner">
       <div className="feedback-grid">
         {/* ---- Labels ---- */}
         <div>
@@ -119,6 +133,7 @@ export function FeedbackPanel({ refreshKey }: { refreshKey: number }) {
           )}
         </div>
       </div>
+      </div></div>
     </section>
   );
 }

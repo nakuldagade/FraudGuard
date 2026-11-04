@@ -52,7 +52,7 @@ side always sends real booleans.
 ## Frontend tests
 
 Component tests (`src/test/*.test.tsx`) render the real app behind the real login gate and answer `fetch` with MSW:
-login success, wrong password, rate limit, bearer token on requests, 401 sending the user back to login, logout, table
+login success, wrong password, rate limit, bearer token on requests, 401 sending the user back to login, logout, one-click demo accounts, the light/dark theme, the details drawer (opens on click, closes with the button and Esc), the KPI cards and charts, table
 rendering and errors, the status filter and account search reaching the backend, paging, opening the detail, submitting a
 review **without** a reviewer name, and the Model feedback panel (labels, ML service down, registry mismatch, promotions).
 The Playwright smoke test (`e2e/smoke.e2e.ts`) does one real pass: wrong password, login, filter, open a row, submit a review.

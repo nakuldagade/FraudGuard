@@ -122,7 +122,16 @@ services:
 
   frontend:
     profiles: ["app"]
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # Shown on the sign-in page for one-click demo logins. DEMO ONLY: compiled into the page, readable by anyone who
+        # can open it. Set SHOW_DEMO_LOGINS=false in .env to hide them (and rebuild: docker compose --profile app build frontend).
+        VITE_SHOW_DEMO_LOGINS: ${SHOW_DEMO_LOGINS:-true}
+        VITE_DEMO_ANALYST_USERNAME: ${FRAUDGUARD_ANALYST_USERNAME:-}
+        VITE_DEMO_ANALYST_PASSWORD: ${FRAUDGUARD_ANALYST_PASSWORD:-}
+        VITE_DEMO_ADMIN_USERNAME: ${FRAUDGUARD_ADMIN_USERNAME:-}
+        VITE_DEMO_ADMIN_PASSWORD: ${FRAUDGUARD_ADMIN_PASSWORD:-}
     depends_on:
       backend: {condition: service_healthy}
     ports:

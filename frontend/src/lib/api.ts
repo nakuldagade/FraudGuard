@@ -6,6 +6,7 @@ import type {
   Transaction,
   TransactionDetail,
   TransactionFilters,
+  TrendPoint,
 } from '../types';
 import { loadSession, notifyUnauthorized } from '../auth/session';
 
@@ -55,6 +56,10 @@ export async function loginRequest(username: string, password: string) {
 // GET /api/transactions/summary
 export const fetchSummary = () =>
   request<DashboardSummary>('/api/transactions/summary');
+
+// GET /api/transactions/trend?hours=24 -> hourly counts by decision, for the activity chart
+export const fetchTrend = (hours = 24) =>
+  request<TrendPoint[]>(`/api/transactions/trend?hours=${hours}`);
 
 // GET /api/transactions?status=&reviewState=&accountId=&page=&size=
 // The backend filters by exact accountId (no free-text search), so the

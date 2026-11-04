@@ -13,6 +13,7 @@ import com.fraudguard.dto.TransactionResponseDTO;
 import com.fraudguard.dto.TransactionSearchCriteria;
 import com.fraudguard.dto.TransactionStatusUpdateDTO;
 import com.fraudguard.dto.TransactionSummaryDTO;
+import com.fraudguard.dto.TrendPointDTO;
 import com.fraudguard.entity.AnalystReview;
 import com.fraudguard.entity.OutboxEvent;
 import com.fraudguard.entity.ReviewState;
@@ -144,6 +145,37 @@ public class TransactionServiceImpl implements TransactionService {
             }
         }
         return new TransactionSummaryDTO(total, awaitingReview, byStatus, byReviewState);
+    }
+
+    // One point per hour for the last `hours` hours, oldest first. Hours with no traffic are included as zeros,
+    // so the chart's x axis is continuous.
+    @Override
+    @Transactional(readOnly = true)
+    public List<TrendPointDTO> trend(int hours) {
+        int span = Math.min(Math.max(hours, 1), 168);                       // 1 hour to 7 days
+        Instant end = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS);
+        Instant start = end.minus(span - 1L, java.time.temporal.ChronoUnit.HOURS);
+
+        Map<Instant, long[]> buckets = new LinkedHashMap<>();                // [approved, review, blocked, pending]
+        for (int i = 0; i < span; i++) {
+            buckets.put(start.plus(i, java.time.temporal.ChronoUnit.HOURS), new long[4]);
+        }
+        for (Object[] row : repository.hourlyStatusCounts(start)) {
+            long[] counts = buckets.get(Instant.ofEpochSecond(((Number) row[0]).longValue()));
+            if (counts == null) {
+                continue;                                                     // a row from the hour after `end` started
+            }
+            long n = ((Number) row[2]).longValue();
+            switch (TransactionStatus.valueOf((String) row[1])) {
+                case APPROVED -> counts[0] += n;
+                case REVIEW -> counts[1] += n;
+                case BLOCKED -> counts[2] += n;
+                case PENDING -> counts[3] += n;
+            }
+        }
+        List<TrendPointDTO> points = new java.util.ArrayList<>(span);
+        buckets.forEach((hour, c) -> points.add(new TrendPointDTO(hour, c[0], c[1], c[2], c[3])));
+        return points;
     }
 
     // NEW: the detail screen: transaction + stored decision inputs + review history

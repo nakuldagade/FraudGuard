@@ -8,6 +8,8 @@ import com.fraudguard.dto.TransactionResponseDTO;
 import com.fraudguard.dto.TransactionSearchCriteria;
 import com.fraudguard.dto.TransactionStatusUpdateDTO;
 import com.fraudguard.dto.TransactionSummaryDTO;
+import com.fraudguard.dto.TrendPointDTO;
+import java.util.List;
 import java.util.UUID;
 
 public interface TransactionService {
@@ -29,6 +31,9 @@ public interface TransactionService {
 
     // Dashboard header numbers
     TransactionSummaryDTO summary();
+
+    // Dashboard chart: one point per hour for the last N hours (oldest first), zeros included
+    List<TrendPointDTO> trend(int hours);
 
     // Dashboard detail screen: the transaction, its stored decision inputs, and the review history
     TransactionDetailDTO getDetail(UUID id);

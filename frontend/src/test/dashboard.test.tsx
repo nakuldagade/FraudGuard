@@ -100,7 +100,8 @@ describe('detail panel and review', () => {
     signIn('ANALYST', 'priya');
     renderApp();
     await userEvent.click(await screen.findByText('acc-1'));
-    expect(await screen.findByText('priya', { selector: 'strong' })).toBeInTheDocument();   // "Reviewing as priya"
+    const drawer = await screen.findByRole('dialog');
+    expect(await within(drawer).findByText('priya', { selector: 'strong' })).toBeInTheDocument();   // "Reviewing as priya"
     expect(screen.queryByPlaceholderText('Your name')).not.toBeInTheDocument();
     await userEvent.type(screen.getByPlaceholderText(/Note/), 'stolen card');
     await userEvent.click(screen.getByRole('button', { name: 'Confirm fraud' }));

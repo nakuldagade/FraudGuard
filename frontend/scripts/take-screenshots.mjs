@@ -12,19 +12,27 @@ const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
 const page = await ctx.newPage();
 
-// 1. Dashboard
+// 1. Dashboard: login page with the demo accounts, then one-click sign in, light and dark, and the details drawer
 await page.goto(DASH);
+await page.getByRole('region', { name: 'Demo accounts' }).waitFor();
+await page.waitForTimeout(1400); // the page fades in on load: wait for the animation to finish
 await page.screenshot({ path: `${OUT}login.png` });
-await page.getByLabel('Username').fill(process.env.FRAUDGUARD_ANALYST_USERNAME);
-await page.getByLabel('Password').fill(process.env.FRAUDGUARD_ANALYST_PASSWORD);
-await page.getByRole('button', { name: 'Sign in' }).click();
-await page.getByRole('combobox').nth(0).selectOption('REVIEW');
+await page.getByRole('button', { name: 'Sign in as Analyst' }).click();
 await page.locator('.table-wrap tbody tr').first().waitFor();
-await page.waitForTimeout(800);
+await page.waitForTimeout(2200); // let the count-up numbers and charts finish animating
+await page.screenshot({ path: `${OUT}dashboard.png`, fullPage: true });
+
 await page.locator('.table-wrap tbody tr').first().click();
 await page.getByText('Reviewing as').waitFor();
+await page.waitForTimeout(900);
+await page.screenshot({ path: `${OUT}drawer.png` });
+await page.keyboard.press('Escape');
 await page.waitForTimeout(500);
-await page.screenshot({ path: `${OUT}dashboard.png`, fullPage: true });
+
+await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+await page.waitForTimeout(900);
+await page.screenshot({ path: `${OUT}dashboard-dark.png`, fullPage: true });
+await page.getByRole('button', { name: 'Switch to light theme' }).click();
 
 // 2. Grafana (anonymous login is off, so sign in)
 const g = await ctx.newPage();

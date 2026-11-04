@@ -1,5 +1,6 @@
 import { formatDateTime, formatMoney, riskLevel } from '../lib/format';
 import type { Transaction } from '../types';
+import { InboxIcon } from './Icons';
 import { ReviewBadge, StatusBadge } from './StatusBadge';
 
 interface Props {
@@ -9,9 +10,20 @@ interface Props {
 }
 
 export function TransactionTable({ rows, selectedId, onSelect }: Props) {
-  if (!rows) return <div className="empty">Loading transactions…</div>;
+  if (!rows) {
+    return (
+      <div className="table-wrap" aria-busy="true" aria-label="Loading transactions">
+        {Array.from({ length: 7 }, (_, i) => <div key={i} className="skeleton skel-row" />)}
+      </div>
+    );
+  }
   if (rows.length === 0) {
-    return <div className="empty">No transactions match these filters.</div>;
+    return (
+      <div className="empty">
+        <InboxIcon width={32} height={32} />
+        <p>No transactions match these filters.</p>
+      </div>
+    );
   }
 
   return (
@@ -31,9 +43,10 @@ export function TransactionTable({ rows, selectedId, onSelect }: Props) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((t) => (
+          {rows.map((t, i) => (
             <tr
               key={t.id}
+              style={{ ['--i' as string]: Math.min(i, 24) }}
               className={t.id === selectedId ? 'selected' : ''}
               onClick={() => onSelect(t.id)}
               // keyboard support: Tab to a row, Enter to open it

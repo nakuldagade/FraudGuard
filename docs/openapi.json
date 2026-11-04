@@ -503,6 +503,31 @@
           }
         },
         "type": "object"
+      },
+      "TrendPointDTO": {
+        "properties": {
+          "approved": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "blocked": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "hour": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pending": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "review": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -957,6 +982,48 @@
           }
         ],
         "summary": "Counts for the dashboard header",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/trend": {
+      "get": {
+        "description": "One point per hour for the last N hours (1 to 168, default 24), zeros included.",
+        "operationId": "trend",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrendPointDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Hourly activity by decision",
         "tags": [
           "Transactions"
         ]

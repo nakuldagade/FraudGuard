@@ -48,6 +48,10 @@ export const handlers = [
   }),
   http.get(`${API}/api/transactions/summary`, () =>
     HttpResponse.json({ total: 3, awaitingReview: 2, byStatus: { REVIEW: 2, APPROVED: 1 }, byReviewState: {} })),
+  http.get(`${API}/api/transactions/trend`, () =>
+    HttpResponse.json(Array.from({ length: 24 }, (_, i) => ({
+      hour: new Date(Date.UTC(2026, 10, 1, i)).toISOString(), approved: i, review: i % 3, blocked: i % 5, pending: 0,
+    })))),
   http.get(`${API}/api/transactions`, () => HttpResponse.json(page([tx(1), tx(2)]))),
   http.get(`${API}/api/transactions/:id/detail`, ({ params }) => {
     const n = Number(String(params.id).charAt(7));

@@ -1,53 +1,78 @@
 import { useAuth } from '../auth/useAuth';
+import { humanize } from '../lib/format';
+import { useCountUp } from '../hooks/useCountUp';
 import type { DashboardSummary } from '../types';
+import { BanIcon, CheckIcon, ClockIcon, EyeIcon, InboxIcon, ListIcon, LogOutIcon, ShieldIcon } from './Icons';
+import { ThemeToggle } from './ThemeToggle';
 
 interface Props {
   summary?: DashboardSummary;
   error?: string;
 }
 
-// One stat card
-function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
+// Top bar: brand, theme switch, who is logged in
+function TopBar() {
+  const { session, logout } = useAuth();
   return (
-    <div className={`stat ${tone ?? ''}`}>
-      <div className="stat-value">{value}</div>
-      <div className="stat-label">{label}</div>
+    <header className="topbar">
+      <div className="brand">
+        <div className="brand-mark"><ShieldIcon /></div>
+        <div>
+          <h1>FraudGuard</h1>
+          <span>Analyst dashboard</span>
+        </div>
+      </div>
+      <div className="topbar-right">
+        <ThemeToggle />
+        {session && (
+          <div className="user-chip">
+            <span className="avatar">{session.username.charAt(0).toUpperCase()}</span>
+            <div className="user-text">
+              <strong>{session.username}</strong>
+              <span className={`role-pill role-${session.role.toLowerCase()}`}>{humanize(session.role)}</span>
+            </div>
+            <button type="button" className="icon-btn" onClick={logout} aria-label="Log out" title="Log out">
+              <LogOutIcon />
+            </button>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+// One KPI card: icon, animated number, label and (optionally) its share of all transactions
+function Kpi({ label, value, total, tone, icon, index }: {
+  label: string; value?: number; total?: number; tone: string; icon: React.ReactNode; index: number;
+}) {
+  const shown = useCountUp(value);
+  const pct = value !== undefined && total ? Math.round((value / total) * 100) : undefined;
+  return (
+    <div className={`kpi ${tone}`} style={{ ['--i' as string]: index }}>
+      <div className="kpi-icon">{icon}</div>
+      <div className="kpi-body">
+        <div className="kpi-value">{value === undefined ? <span className="skeleton skel-num" /> : (shown ?? 0).toLocaleString('en-IN')}</div>
+        <div className="kpi-label">{label}{pct !== undefined && <em>{pct}%</em>}</div>
+      </div>
     </div>
   );
 }
 
-// Top bar: title + the summary numbers
 export function SummaryHeader({ summary, error }: Props) {
-  const { session, logout } = useAuth();
-  // Show "–" until the first response arrives; missing keys count as 0
-  const n = (v?: number) => (v === undefined ? '–' : v.toLocaleString('en-IN'));
-  const byStatus = (s: keyof NonNullable<typeof summary>['byStatus']) =>
-    summary ? (summary.byStatus[s] ?? 0) : undefined;
-
+  const by = (s: keyof NonNullable<typeof summary>['byStatus']) => (summary ? (summary.byStatus[s] ?? 0) : undefined);
+  const total = summary?.total;
   return (
-    <header className="app-header">
-      <div className="app-title">
-        <h1>FraudGuard</h1>
-        <span>Analyst dashboard</span>
-      </div>
-
-      <div className="stats">
-        <Stat label="Total" value={n(summary?.total)} />
-        <Stat label="Approved" value={n(byStatus('APPROVED'))} tone="good" />
-        <Stat label="In review" value={n(byStatus('REVIEW'))} tone="warn" />
-        <Stat label="Blocked" value={n(byStatus('BLOCKED'))} tone="bad" />
-        <Stat label="Pending" value={n(byStatus('PENDING'))} />
-        <Stat label="Awaiting analyst" value={n(summary?.awaitingReview)} tone="warn" />
-      </div>
-
-      {session && (
-        <div className="whoami">
-          <span>{session.username} ({session.role.toLowerCase()})</span>
-          <button className="btn" onClick={logout}>Log out</button>
-        </div>
-      )}
-
-      {error && <div className="banner error">Could not load summary: {error}</div>}
-    </header>
+    <>
+      <TopBar />
+      <section className="kpis" aria-label="Summary">
+        <Kpi index={0} label="Total" value={total} tone="neutral" icon={<ListIcon />} />
+        <Kpi index={1} label="Approved" value={by('APPROVED')} total={total} tone="good" icon={<CheckIcon />} />
+        <Kpi index={2} label="In review" value={by('REVIEW')} total={total} tone="warn" icon={<EyeIcon />} />
+        <Kpi index={3} label="Blocked" value={by('BLOCKED')} total={total} tone="bad" icon={<BanIcon />} />
+        <Kpi index={4} label="Pending" value={by('PENDING')} total={total} tone="neutral" icon={<ClockIcon />} />
+        <Kpi index={5} label="Awaiting analyst" value={summary?.awaitingReview} tone="accent" icon={<InboxIcon />} />
+      </section>
+      {error && <div className="banner error page-banner">Could not load summary: {error}</div>}
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { humanize } from '../lib/format';
+import { SearchIcon } from './Icons';
 import type { ReviewState, TransactionFilters, TransactionStatus } from '../types';
 
 const STATUSES: TransactionStatus[] = ['PENDING', 'APPROVED', 'REVIEW', 'BLOCKED'];
@@ -31,12 +32,15 @@ export function Filters({ filters, onChange }: Props) {
 
     return (
         <div className="filters">
-            <input
-                type="search"
-                placeholder="Account id (exact match)…"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-            />
+            <div className="search">
+                <SearchIcon width={16} height={16} />
+                <input
+                    type="search"
+                    placeholder="Account id (exact match)…"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                />
+            </div>
 
             <select
                 value={filters.status}

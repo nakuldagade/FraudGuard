@@ -22,7 +22,7 @@ Pick three or four. Each number is from a measurement documented in the reposito
 - Added a feedback loop (analyst labels, retraining, a promotion gate, hot model reload, score calibration) and measured it end to end on synthetic labels.
 - Ran nine failure drills (ML, Redis, Kafka and PostgreSQL outages, poison and duplicate messages, restart under load, corrupt model registry), which exposed a 60 s Redis timeout that stalled recovery, fixed with a 2 s timeout; built a re-drive endpoint and alerts for stuck transactions.
 - Secured the system with role-based JWT login, an API key for ingestion, token-protected ML routes and protected metrics; found and fixed real issues along the way (Starlette advisories flagged by `pip-audit`, an nginx `Host` header bug that broke browser logins).
-- Shipped 139 backend tests (94.6% line coverage, enforced in the build), 45 ML tests, 22 frontend tests and an end-to-end browser test, plus Java/Python contract tests against a shared JSON Schema.
+- Shipped 142 backend tests (94.6% line coverage, enforced in the build), 45 ML tests, 35 frontend tests and an end-to-end browser test, plus Java/Python contract tests against a shared JSON Schema.
 - Packaged everything with multi-stage non-root Docker images, one-command Compose startup, GitHub Actions CI, CodeQL, Trivy and Dependabot configuration.
 
 ## LinkedIn post (draft)

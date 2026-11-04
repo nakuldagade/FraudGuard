@@ -227,6 +227,7 @@ login endpoint allows 5 attempts a minute; `localhost` vs `127.0.0.1` for the ML
 - **One instance.** The login rate limit and the ML circuit breaker are per backend instance and kept in memory.
 - **Login rate limit uses the connection address.** Behind a reverse proxy every user would share the proxy's
   address; a real deployment needs the forwarded client address and a shared store such as Redis.
+- **Demo logins on the sign-in page.** For quick demos the page lists the demo usernames and passwords, compiled into the frontend. Anyone who can open the page can read them. Turn them off with `SHOW_DEMO_LOGINS=false` and rebuild the frontend for anything shared.
 - **Token storage.** The dashboard keeps the login token in `sessionStorage`. Any script running on the page could
   read it, so an XSS bug would expose it. The alternative (an httpOnly cookie) trades that for needing CSRF protection.
 - **Shared secrets, not per-service identities.** The ML service and Prometheus authenticate with shared secrets from `.env`.

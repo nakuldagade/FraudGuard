@@ -13,7 +13,7 @@ interface Props {
 export function DetailPanel({ id, refreshKey, onReviewed }: Props) {
   const { data, error } = useTransactionDetail(id, refreshKey);
 
-  if (!id) return <p className="muted">Select a transaction to see details.</p>;
+  if (!id) return null; // the drawer only exists while a transaction is selected
   if (!data) {
     return error ? (
       <div className="banner error">Could not load details: {error}</div>

@@ -19,7 +19,7 @@ test('analyst can log in, filter, open a transaction and submit a review', async
 
   await page.getByLabel('Password').fill(PASS!);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(`${USER} (analyst)`)).toBeVisible();
+  await expect(page.locator('.user-chip').getByText(USER!, { exact: true })).toBeVisible();
 
   // filter to transactions waiting for an analyst
   await page.getByRole('combobox').nth(0).selectOption('REVIEW');
@@ -33,7 +33,7 @@ test('analyst can log in, filter, open a transaction and submit a review', async
   // open the first row; the detail panel shows who is reviewing
   await rows.first().click();
   await expect(page.getByText('Reviewing as')).toBeVisible();
-  await expect(page.locator('strong', { hasText: USER! })).toBeVisible();
+  await expect(page.getByRole('dialog').locator('strong', { hasText: USER! })).toBeVisible();
 
   // submit a review and see it in the history
   await page.getByPlaceholder(/Note/).fill('e2e smoke test');

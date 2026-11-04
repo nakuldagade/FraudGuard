@@ -83,3 +83,12 @@ export interface TransactionFilters {
   page: number;
   size: number;
 }
+
+// GET /api/transactions/trend: one point per hour (oldest first), counts by decision
+export interface TrendPoint {
+  hour: string; // ISO timestamp of the start of the hour (UTC)
+  approved: number;
+  review: number;
+  blocked: number;
+  pending: number;
+}

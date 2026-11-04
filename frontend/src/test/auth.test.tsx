@@ -17,7 +17,7 @@ describe('login and session handling', () => {
     await userEvent.type(screen.getByLabelText('Password'), 'wrong');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(await screen.findByText('Invalid username or password')).toBeInTheDocument();
-    expect(screen.queryByText('Analyst dashboard')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument();   // no dashboard
   });
 
   it('logs in, shows the dashboard with the username and role, and keeps the token in sessionStorage', async () => {
@@ -25,7 +25,8 @@ describe('login and session handling', () => {
     await userEvent.type(screen.getByLabelText('Username'), 'analyst');
     await userEvent.type(screen.getByLabelText('Password'), 'right-password');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-    expect(await screen.findByText('analyst (analyst)')).toBeInTheDocument();
+    expect(await screen.findByText('analyst')).toBeInTheDocument();     // the user chip in the top bar
+    expect(screen.getByText('Analyst')).toBeInTheDocument();             // the role
     expect(sessionStorage.getItem('fraudguard.session')).toContain('jwt-token');
   });
 
