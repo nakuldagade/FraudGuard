@@ -23,6 +23,8 @@ docker run --rm -i --add-host host.docker.internal:host-gateway \
   -e FRAUDGUARD_ADMIN_USERNAME -e FRAUDGUARD_ADMIN_PASSWORD \
   -v "$PWD/perf:/perf" grafana/k6:latest run --quiet --summary-export="/perf/results/$(basename "$OUT").json" "/perf/$SCRIPT"
 K6_EXIT=$?
+# The read test logs in during setup, and k6 can keep that token in the summary: never leave a token in a saved file
+sed -i.bak -E 's/"token": "[^"]*"/"token": "REDACTED"/' "perf/results/$(basename "$OUT").json" 2>/dev/null; rm -f "perf/results/$(basename "$OUT").json.bak"
 END=$(date +%s); WINDOW=$((END - START + 30))
 
 if [ "$TEST" = e2e ] || [ "$TEST" = ingest ] || [ "$TEST" = soak ]; then

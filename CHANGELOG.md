@@ -2,6 +2,32 @@
 
 All notable changes. FraudGuard runs on synthetic demo data and is not production-grade.
 
+## [1.0.0] - Unreleased
+
+First complete version. Phases 12 and 13 (below) were added on top of Phases 1 to 11; see the sections after this one for the details of
+Phases 10 and 11 and `git log` for the earlier phases.
+
+### Added
+- **Docker.** Multi-stage, non-root images for the backend (layered jar), ML service (trains `isoforest-v1` at build time) and frontend (nginx
+  proxying `/api`); `docker compose --profile app up --build` starts the whole application with health checks and ordered start-up.
+- **CI and security automation.** GitHub Actions for build and test, CodeQL, Trivy image scans, `pip-audit`, `npm audit`, gitleaks, Dependabot, and a
+  tag-triggered release to GHCR (written and linted, not yet run on GitHub).
+- **Developer experience.** `Makefile` (`up`, `down`, `seed`, `test`, `lint`, `demo`, `openapi`), PR template, `scripts/release-notes.sh`.
+- **API documentation.** springdoc OpenAPI and Swagger UI, `docs/openapi.json`, `docs/api-examples.http`.
+- **Documentation.** New README, rewritten architecture doc with diagrams, nine ADRs, demo script, portfolio material, publish checklist, screenshots.
+- MIT licence.
+
+### Changed
+- ML model files, the registry and feedback exports are no longer tracked in git (the Docker build and `python training/train.py` create `isoforest-v1`).
+- Frontend port in Docker is 8081 (3000 is Grafana). `FRONTEND_PORT` in `.env.example` changed to match.
+- ML dependencies updated: FastAPI 0.162 and Starlette 1.10 (older Starlette had known advisories), pytest 9.2.
+
+### Fixed
+- nginx forwarded `Host` without the port, so browsers' login requests were rejected as cross-origin (403).
+- The Grafana "Block rate" panel showed "No data" instead of 0% when nothing had been blocked.
+- npm audit high-severity finding (`zod`) resolved.
+
+
 ## Unreleased: Phase 11 (testing and performance)
 
 ### Added

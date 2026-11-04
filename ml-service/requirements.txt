@@ -1,5 +1,6 @@
 # Serving
-fastapi==0.115.*
+fastapi==0.162.*
+starlette==1.10.*   # pinned directly: older Starlette versions have known security advisories (pip-audit)
 uvicorn[standard]==0.32.*
 prometheus-client==0.21.*
 
@@ -10,7 +11,7 @@ scikit-learn==1.7.2
 joblib==1.5.2
 
 # Tests
-pytest==8.4.2
+pytest==9.2.0
 httpx==0.28.1
 # Coverage (Phase 11): the serving code must stay at 85% or more. Training scripts are reported by CI but not gated.
 pytest-cov==7.0.0

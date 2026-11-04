@@ -1,0 +1,18 @@
+# Used when the backend runs inside Docker Compose (profile "docker"): services are reached by their compose names.
+# Secrets still come from environment variables (see application.yml and .env.example).
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/${POSTGRES_DB:fraud}
+    username: ${POSTGRES_USER:fraud_user}
+    password: ${POSTGRES_PASSWORD}
+  kafka:
+    bootstrap-servers: kafka:9092
+  data:
+    redis:
+      host: redis
+      port: 6379
+fraudguard:
+  ml:
+    base-url: http://ml-service:8000
+  cors:
+    allowed-origins: ""      # the browser talks to the frontend's nginx, which proxies /api: same origin, no CORS

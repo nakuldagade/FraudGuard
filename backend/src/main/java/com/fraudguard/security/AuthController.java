@@ -1,5 +1,8 @@
 package com.fraudguard.security;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.fraudguard.entity.AppUser;
 import com.fraudguard.repository.UserRepository;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
+@Tag(name = "Authentication", description = "Log in to get a JWT for the analyst routes")
 @RequestMapping("/api/auth")
 public class AuthController {
 
@@ -51,6 +55,7 @@ public class AuthController {
     }
 
     // POST /api/auth/login. Passwords and tokens are never logged.
+    @Operation(summary = "Log in", description = "Returns a bearer token (60 minutes). Limited to 5 attempts per minute per IP.")
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
         if (!rateLimiter.tryAcquire(http.getRemoteAddr())) {
@@ -70,6 +75,7 @@ public class AuthController {
     }
 
     // GET /api/auth/me: who am I? (the dashboard uses it to restore its header)
+    @Operation(summary = "Who am I?", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/me")
     public MeResponse me(Authentication authentication) {
         String role = authentication.getAuthorities().stream()

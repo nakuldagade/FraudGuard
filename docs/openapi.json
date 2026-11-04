@@ -1,0 +1,1112 @@
+{
+  "components": {
+    "schemas": {
+      "DlqRecord": {
+        "properties": {
+          "exception": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "partition": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Entry": {
+        "properties": {
+          "lastScoredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "modelVersion": {
+            "type": "string"
+          },
+          "transactions": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "FeedbackStatsDTO": {
+        "properties": {
+          "confirmedFraud": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "furtherReviewRequested": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "markedLegitimate": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unreviewed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "usableLabels": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "JsonNode": {},
+      "LabeledTransactionDTO": {
+        "properties": {
+          "action": {
+            "enum": [
+              "CONFIRM_FRAUD",
+              "MARK_LEGITIMATE",
+              "REQUEST_FURTHER_REVIEW"
+            ],
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "anomalyScore": {
+            "format": "double",
+            "type": "number"
+          },
+          "decisionInputs": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "label": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "labeledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "modelVersion": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewer": {
+            "type": "string"
+          },
+          "riskScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REVIEW",
+              "BLOCKED"
+            ],
+            "type": "string"
+          },
+          "transactionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "password": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "username"
+        ],
+        "type": "object"
+      },
+      "LoginResponse": {
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "expiresInSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "role": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MeResponse": {
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ModelUsageDTO": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            },
+            "type": "array"
+          },
+          "unscored": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PageResponseDTOTransactionResponseDTO": {
+        "properties": {
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionResponseDTO"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Result": {
+        "properties": {
+          "requeued": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "skipped": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ReviewResponseDTO": {
+        "properties": {
+          "action": {
+            "enum": [
+              "CONFIRM_FRAUD",
+              "MARK_LEGITIMATE",
+              "REQUEST_FURTHER_REVIEW"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "reviewer": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RuleHit": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "score": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Summary": {
+        "properties": {
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/DlqRecord"
+            },
+            "type": "array"
+          },
+          "recentByException": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "totalMessages": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TransactionDetailDTO": {
+        "properties": {
+          "decisionInputs": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewResponseDTO"
+            },
+            "type": "array"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/TransactionResponseDTO"
+          }
+        },
+        "type": "object"
+      },
+      "TransactionRequestDTO": {
+        "properties": {
+          "accountId": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "amount": {
+            "minimum": 0.01,
+            "type": "number"
+          },
+          "country": {
+            "pattern": "^[A-Z]{2}$",
+            "type": "string"
+          },
+          "currency": {
+            "minLength": 1,
+            "pattern": "^[A-Z]{3}$",
+            "type": "string"
+          },
+          "deviceId": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "merchantId": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "transactionType": {
+            "enum": [
+              "DEPOSIT",
+              "WITHDRAWAL",
+              "TRANSFER",
+              "PAYMENT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "amount",
+          "currency",
+          "transactionType"
+        ],
+        "type": "object"
+      },
+      "TransactionResponseDTO": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "anomalyScore": {
+            "format": "double",
+            "type": "number"
+          },
+          "country": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "decisionExplanation": {
+            "type": "string"
+          },
+          "deviceId": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "modelVersion": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reviewState": {
+            "enum": [
+              "UNREVIEWED",
+              "CONFIRMED_FRAUD",
+              "MARKED_LEGITIMATE",
+              "NEEDS_MORE_REVIEW"
+            ],
+            "type": "string"
+          },
+          "riskScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "ruleHits": {
+            "items": {
+              "$ref": "#/components/schemas/RuleHit"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REVIEW",
+              "BLOCKED"
+            ],
+            "type": "string"
+          },
+          "transactionType": {
+            "enum": [
+              "DEPOSIT",
+              "WITHDRAWAL",
+              "TRANSFER",
+              "PAYMENT"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TransactionStatusUpdateDTO": {
+        "properties": {
+          "action": {
+            "enum": [
+              "CONFIRM_FRAUD",
+              "MARK_LEGITIMATE",
+              "REQUEST_FURTHER_REVIEW"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reviewer": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "TransactionSummaryDTO": {
+        "properties": {
+          "awaitingReview": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "byReviewState": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "byStatus": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "apiKey": {
+        "description": "Service key for ingestion (FRAUDGUARD_INGEST_API_KEYS)",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      },
+      "bearerAuth": {
+        "bearerFormat": "JWT",
+        "description": "Token from POST /api/auth/login",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Real-time fraud detection demo. Runs on synthetic data and is not production-grade: scores and decisions say nothing about real-world accuracy.",
+    "title": "FraudGuard API",
+    "version": "1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/admin/dlq/summary": {
+      "get": {
+        "operationId": "dlqSummary",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Dead-letter topic size and recent failure causes",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/transactions/redrive-pending": {
+      "post": {
+        "description": "Writes a new outbox event for each stuck transaction. Safe to repeat.",
+        "operationId": "redrivePending",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "olderThanSeconds",
+            "required": false,
+            "schema": {
+              "default": 120,
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Re-queue transactions stuck in PENDING",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "description": "Returns a bearer token (60 minutes). Limited to 5 attempts per minute per IP.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Log in",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Who am I?",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/feedback/labels": {
+      "get": {
+        "operationId": "labels",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LabeledTransactionDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Labelled training rows (ADMIN only)",
+        "tags": [
+          "Feedback loop"
+        ]
+      }
+    },
+    "/api/feedback/models": {
+      "get": {
+        "operationId": "models",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelUsageDTO"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Transactions scored per model version",
+        "tags": [
+          "Feedback loop"
+        ]
+      }
+    },
+    "/api/feedback/registry": {
+      "get": {
+        "operationId": "registry",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonNode"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Live model and promotion history (from the ML service)",
+        "tags": [
+          "Feedback loop"
+        ]
+      }
+    },
+    "/api/feedback/stats": {
+      "get": {
+        "operationId": "stats",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackStatsDTO"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Label counts",
+        "tags": [
+          "Feedback loop"
+        ]
+      }
+    },
+    "/api/transactions": {
+      "get": {
+        "description": "Newest first. Every filter is optional.",
+        "operationId": "search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "enum": [
+                  "PENDING",
+                  "APPROVED",
+                  "REVIEW",
+                  "BLOCKED"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reviewState",
+            "required": false,
+            "schema": {
+              "enum": [
+                "UNREVIEWED",
+                "CONFIRMED_FRAUD",
+                "MARKED_LEGITIMATE",
+                "NEEDS_MORE_REVIEW"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minRiskScore",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "maxRiskScore",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "accountId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageResponseDTOTransactionResponseDTO"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Search transactions",
+        "tags": [
+          "Transactions"
+        ]
+      },
+      "post": {
+        "description": "Service API key in X-API-Key. 202 = newly accepted, 200 = replay of an identical request with the same Idempotency-Key, 409 = same key with a different body.",
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionRequestDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponseDTO"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "summary": "Ingest a transaction",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/summary": {
+      "get": {
+        "operationId": "summary",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionSummaryDTO"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Counts for the dashboard header",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/{id}": {
+      "get": {
+        "operationId": "getById",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponseDTO"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One transaction",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/{id}/detail": {
+      "get": {
+        "operationId": "detail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDetailDTO"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Transaction with decision inputs and review history",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/{id}/review": {
+      "post": {
+        "description": "The reviewer is the logged-in user; a reviewer field in the body is ignored.",
+        "operationId": "review",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionStatusUpdateDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResponseDTO"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Record an analyst review",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "Generated server url",
+      "url": "http://localhost:8080"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Log in to get a JWT for the analyst routes",
+      "name": "Authentication"
+    },
+    {
+      "description": "Ingest transactions (service API key) and search, inspect and review them (analyst login)",
+      "name": "Transactions"
+    },
+    {
+      "description": "Operator tools. ADMIN role only.",
+      "name": "Admin"
+    },
+    {
+      "description": "Analyst labels and label statistics",
+      "name": "Feedback loop"
+    }
+  ]
+}

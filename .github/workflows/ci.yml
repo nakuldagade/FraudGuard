@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: CI only reads the repository
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the older run
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # Testcontainers starts PostgreSQL, Kafka and Redis, which works on GitHub's Ubuntu runners (Docker is preinstalled)
+      - name: Build, test and check coverage
+        working-directory: backend
+        run: mvn -B verify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-reports
+          path: |
+            backend/target/surefire-reports
+            backend/target/site/jacoco
+          retention-days: 14
+
+  ml-service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ml-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ml-service/requirements.txt
+      - run: pip install -r requirements.txt
+      # Model files are not stored in git: train the baseline model first (deterministic, seed 42)
+      - run: python training/train.py
+      - name: Tests with coverage (fails below 85% of app/)
+        run: pytest --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ml-coverage
+          path: ml-service/coverage.xml
+          retention-days: 14
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit -p tsconfig.app.json
+      - run: npm test
+      - run: npm run build
+
+  config-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker Compose files are valid
+        run: |
+          cp .env.example .env
+          docker compose config -q
+          docker compose --profile app config -q
+          docker compose -f infra/observability/docker-compose.yml config -q
+      - name: Prometheus alert rules and their unit tests
+        run: |
+          docker run --rm -v "$PWD/infra/observability:/w" -w /w --entrypoint promtool prom/prometheus:v2.55.1 check rules alerts.yml
+          docker run --rm -v "$PWD/infra/observability:/w" -w /w --entrypoint promtool prom/prometheus:v2.55.1 test rules alerts_test.yml
+      - name: Grafana dashboard is valid JSON
+        run: jq empty infra/observability/grafana/dashboards/*.json
+      - name: Markdown links point at real files and pages
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --no-progress --include-fragments "**/*.md"
+          fail: true

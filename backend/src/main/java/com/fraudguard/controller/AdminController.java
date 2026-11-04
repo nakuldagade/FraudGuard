@@ -1,5 +1,8 @@
 package com.fraudguard.controller;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.fraudguard.service.DlqService;
 import com.fraudguard.service.RedriveService;
 import java.time.Duration;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 // Operator tools. Every route here is ADMIN-only (enforced in the security config, Phase 10.4).
 @RestController
+@Tag(name = "Admin", description = "Operator tools. ADMIN role only.")
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
 public class AdminController {
@@ -22,6 +26,7 @@ public class AdminController {
     private final DlqService dlqService;
 
     // POST /api/admin/transactions/redrive-pending?olderThanSeconds=120&limit=500
+    @Operation(summary = "Re-queue transactions stuck in PENDING", description = "Writes a new outbox event for each stuck transaction. Safe to repeat.", security = @SecurityRequirement(name = "bearerAuth"))
     @PostMapping("/transactions/redrive-pending")
     public RedriveService.Result redrivePending(
             @RequestParam(defaultValue = "120") long olderThanSeconds,
@@ -31,6 +36,7 @@ public class AdminController {
     }
 
     // GET /api/admin/dlq/summary
+    @Operation(summary = "Dead-letter topic size and recent failure causes", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/dlq/summary")
     public DlqService.Summary dlqSummary() {
         return dlqService.summarize();

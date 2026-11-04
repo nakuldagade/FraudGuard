@@ -1,0 +1,90 @@
+### FraudGuard API examples. Works with the VS Code "REST Client" extension and IntelliJ's HTTP client.
+### Values come from your .env (see .env.example). Replace the variables below, or use an http-client.env.json.
+@base = http://localhost:8080
+@apiKey = demo-ingest-key
+@username = analyst
+@password = demo-analyst-password
+@adminUser = admin
+@adminPassword = demo-admin-password
+
+### 1. Log in as an analyst. Copy "accessToken" from the answer into @token below (5 attempts per minute per IP).
+# @name login
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@token = paste-the-accessToken-here
+
+### 2. Who am I?
+GET {{base}}/api/auth/me
+Authorization: Bearer {{token}}
+
+### 3. Ingest a transaction (a service API key, not a login). 202 = new, 200 = replay of the same Idempotency-Key.
+POST {{base}}/api/transactions
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+Idempotency-Key: example-0001
+
+{
+  "accountId": "acc-demo-1",
+  "merchantId": "m-1",
+  "transactionType": "PAYMENT",
+  "amount": 25.50,
+  "currency": "INR",
+  "country": "IN",
+  "deviceId": "dev-1"
+}
+
+### 4. Search: transactions waiting for an analyst
+GET {{base}}/api/transactions?status=REVIEW&status=BLOCKED&reviewState=UNREVIEWED&page=0&size=20
+Authorization: Bearer {{token}}
+
+### 5. Counts for the dashboard header
+GET {{base}}/api/transactions/summary
+Authorization: Bearer {{token}}
+
+### 6. One transaction with its decision inputs and review history (put a real id from step 4)
+GET {{base}}/api/transactions/00000000-0000-0000-0000-000000000000/detail
+Authorization: Bearer {{token}}
+
+### 7. Review it. The reviewer is the logged-in user, a "reviewer" field in the body is ignored.
+POST {{base}}/api/transactions/00000000-0000-0000-0000-000000000000/review
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "action": "REQUEST_FURTHER_REVIEW", "note": "Need the device history" }
+
+### 8. Feedback loop: label counts, models in use, live model
+GET {{base}}/api/feedback/stats
+Authorization: Bearer {{token}}
+
+###
+GET {{base}}/api/feedback/models
+Authorization: Bearer {{token}}
+
+###
+GET {{base}}/api/feedback/registry
+Authorization: Bearer {{token}}
+
+### ---- ADMIN only: log in as admin, put that token in @token, then: ----
+
+### 9. Training data export
+GET {{base}}/api/feedback/labels
+Authorization: Bearer {{token}}
+
+### 10. Dead-letter topic: how many records, and why they failed
+GET {{base}}/api/admin/dlq/summary
+Authorization: Bearer {{token}}
+
+### 11. Re-queue transactions stuck in PENDING for over 2 minutes
+POST {{base}}/api/admin/transactions/redrive-pending?olderThanSeconds=120&limit=500
+Authorization: Bearer {{token}}
+
+### Health and metrics. Health is public; metrics need the METRICS login (HTTP Basic).
+GET {{base}}/actuator/health/readiness
+
+###
+GET {{base}}/actuator/prometheus
+Authorization: Basic cHJvbWV0aGV1czpkZW1vLW1ldHJpY3MtcGFzc3dvcmQ=

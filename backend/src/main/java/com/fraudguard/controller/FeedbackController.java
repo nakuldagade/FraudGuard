@@ -1,5 +1,8 @@
 package com.fraudguard.controller;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.fraudguard.dto.FeedbackStatsDTO;
 import com.fraudguard.dto.LabeledTransactionDTO;
 import com.fraudguard.service.FeedbackService;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 // Phase 9 feedback loop. Read-only: nothing here changes a decision or a review.
 // (These endpoints expose training data, so Phase 10 should restrict them to an admin role.)
 @RestController
+@Tag(name = "Feedback loop", description = "Analyst labels and label statistics")
 @RequestMapping("/api/feedback")
 @RequiredArgsConstructor
 public class FeedbackController {
@@ -21,12 +25,14 @@ public class FeedbackController {
     // GET /api/feedback/labels: every transaction an analyst labelled fraud or legitimate,
     // with its stored decision inputs. The ML service's retraining script downloads this.
     // (Not paged: fine at demo scale; a real system would stream or page it.)
+    @Operation(summary = "Labelled training rows (ADMIN only)", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/labels")
     public List<LabeledTransactionDTO> labels() {
         return service.labeledTransactions();
     }
 
     // GET /api/feedback/stats: how much feedback exists
+    @Operation(summary = "Label counts", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/stats")
     public FeedbackStatsDTO stats() {
         return service.stats();

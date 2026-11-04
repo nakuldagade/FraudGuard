@@ -1,5 +1,7 @@
-.venv
-__pycache__
-.pytest_cache
-tests
-training
+.venv/
+__pycache__/
+.pytest_cache/
+.coverage
+data/
+models/
+tests/

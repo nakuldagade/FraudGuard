@@ -53,7 +53,6 @@ services:
       timeout: 10s
       retries: 12
 
-  # One-shot job: creates the project topics, then exits.
   # Web UI to browse Kafka topics and messages: http://localhost:8085
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:latest
@@ -66,14 +65,70 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
 
-  # Placeholder: replaced by the real scoring service in Phase 6.
+  # ---------------------------------------------------------------------------------------------------
+  # The application itself. Off by default (profile "app"): day to day you run the backend, ML service and
+  # frontend on your machine. One command for everything:   docker compose --profile app up --build
+  # Needs .env (copy .env.example; the FRAUDGUARD_*, SERVICE_TOKEN and ADMIN_TOKEN values are required).
+  # ---------------------------------------------------------------------------------------------------
   ml-service:
-    profiles: ["docker-ml"]      # off by default: in development the ML service runs locally with uvicorn
+    profiles: ["app"]
     build: ./ml-service
+    environment:
+      ENV: docker                          # anything but "local": tokens are mandatory
+      SERVICE_TOKEN: ${SERVICE_TOKEN:?set SERVICE_TOKEN in .env}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
     ports:
-      - "${ML_SERVICE_PORT:-8000}:8000"
+      - "${ML_SERVICE_PORT:-8000}:8000"    # Prometheus scrapes /metrics here
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    profiles: ["app"]
+    build: ./backend
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      ml-service: {condition: service_healthy}
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      FRAUDGUARD_JWT_SECRET: ${FRAUDGUARD_JWT_SECRET:?set FRAUDGUARD_JWT_SECRET in .env}
+      FRAUDGUARD_INGEST_API_KEYS: ${FRAUDGUARD_INGEST_API_KEYS:?set FRAUDGUARD_INGEST_API_KEYS in .env}
+      FRAUDGUARD_METRICS_USERNAME: ${FRAUDGUARD_METRICS_USERNAME:-prometheus}
+      FRAUDGUARD_METRICS_PASSWORD: ${FRAUDGUARD_METRICS_PASSWORD:?set FRAUDGUARD_METRICS_PASSWORD in .env}
+      FRAUDGUARD_ADMIN_USERNAME: ${FRAUDGUARD_ADMIN_USERNAME:-}
+      FRAUDGUARD_ADMIN_PASSWORD: ${FRAUDGUARD_ADMIN_PASSWORD:-}
+      FRAUDGUARD_ANALYST_USERNAME: ${FRAUDGUARD_ANALYST_USERNAME:-}
+      FRAUDGUARD_ANALYST_PASSWORD: ${FRAUDGUARD_ANALYST_PASSWORD:-}
+      FRAUDGUARD_SEED_USERNAME: ${FRAUDGUARD_SEED_USERNAME:-}
+      FRAUDGUARD_SEED_PASSWORD: ${FRAUDGUARD_SEED_PASSWORD:-}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:?set SERVICE_TOKEN in .env}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"       # Prometheus scrapes /actuator/prometheus here
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 60s
+
+  frontend:
+    profiles: ["app"]
+    build: ./frontend
+    depends_on:
+      backend: {condition: service_healthy}
+    ports:
+      - "${FRONTEND_PORT:-8081}:8080"      # http://localhost:8081 (3000 is Grafana)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5

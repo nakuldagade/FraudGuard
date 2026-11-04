@@ -116,6 +116,9 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/error").permitAll()      // Spring's error page (404s and such)
+                        // The API description and Swagger UI: public, they describe routes but contain no data or secrets.
+                        // Turn them off with springdoc.api-docs.enabled=false and springdoc.swagger-ui.enabled=false.
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         .anyRequest().denyAll());
         return http.build();
     }

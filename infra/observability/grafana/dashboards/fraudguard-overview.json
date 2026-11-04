@@ -234,7 +234,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(fraudguard_decisions_total{status=\"BLOCKED\"}[$__range])) / sum(increase(fraudguard_decisions_total[$__range]))",
+          "expr": "(sum(increase(fraudguard_decisions_total{status=\"BLOCKED\"}[$__range])) or vector(0)) / sum(increase(fraudguard_decisions_total[$__range]))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,

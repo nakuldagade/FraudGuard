@@ -1,0 +1,7 @@
+# Known, reviewed findings. gitleaks skips exactly these (commit:file:rule:line).
+# Three k6 summaries in commit ace17a3 captured the admin login token from the load test setup. Each token had a 60-minute
+# lifetime and was signed with the local demo secret from .env.example, so it is long expired and was never a real credential.
+# The files were deleted afterwards and perf/run.sh now redacts tokens from saved summaries.
+ace17a3675f4993d0402046cfd0252d37ac4c23d:perf/results/read-1793785147.json:jwt:160
+ace17a3675f4993d0402046cfd0252d37ac4c23d:perf/results/read-1793788177.json:jwt:191
+ace17a3675f4993d0402046cfd0252d37ac4c23d:perf/results/read-1793785803.json:jwt:191

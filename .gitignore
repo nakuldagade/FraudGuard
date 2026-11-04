@@ -44,3 +44,19 @@ playwright-report/
 # Coverage output
 .coverage
 coverage/
+
+# ML model artifacts are generated, not stored (policy in docs/architecture.md): the Docker build trains isoforest-v1;
+# locally run  python training/train.py.  Retrained models, the registry and feedback exports stay on your machine.
+ml-service/models/*.joblib
+ml-service/models/*.metrics.json
+ml-service/models/registry.json
+ml-service/data/
+
+# Logs, editor and tool output
+*.log
+.env.*
+!.env.example
+test-results/
+playwright-report/
+.vscode/
+.idea/

@@ -1,5 +1,8 @@
 package com.fraudguard.controller;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.fraudguard.dto.PageResponseDTO;
 import com.fraudguard.dto.ReviewResponseDTO;
 import com.fraudguard.dto.TransactionDetailDTO;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController                        // methods return JSON directly
+@Tag(name = "Transactions", description = "Ingest transactions (service API key) and search, inspect and review them (analyst login)")
 @RequestMapping("/api/transactions")   // base URL for everything in this class
 @RequiredArgsConstructor               // constructor injection of the final field below
 public class TransactionController {
@@ -32,6 +36,8 @@ public class TransactionController {
 
     // POST /api/transactions
     // 202 Accepted = newly stored.  200 OK = identical request replayed (same Idempotency-Key).
+    @Operation(summary = "Ingest a transaction", description = "Service API key in X-API-Key. 202 = newly accepted, 200 = replay of an identical request with the same Idempotency-Key, 409 = same key with a different body.",
+            security = @SecurityRequirement(name = "apiKey"))
     @PostMapping
     public ResponseEntity<TransactionResponseDTO> create(
             @RequestHeader("Idempotency-Key") String idempotencyKey,   // required header
@@ -53,6 +59,7 @@ public class TransactionController {
 
     // GET /api/transactions?status=REVIEW&status=BLOCKED&reviewState=UNREVIEWED&minRiskScore=40...
     // The dashboard list. Every filter is optional. from/to are ISO instants, e.g. 2026-10-01T00:00:00Z.
+    @Operation(summary = "Search transactions", description = "Newest first. Every filter is optional.", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping
     public PageResponseDTO<TransactionResponseDTO> search(
             @RequestParam(required = false) List<TransactionStatus> status,
@@ -71,24 +78,28 @@ public class TransactionController {
 
     // GET /api/transactions/summary: numbers for the dashboard header.
     // (The fixed word "summary" wins over the "/{id}" pattern below.)
+    @Operation(summary = "Counts for the dashboard header", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/summary")
     public TransactionSummaryDTO summary() {
         return service.summary();
     }
 
     // GET /api/transactions/{id}
+    @Operation(summary = "One transaction", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/{id}")
     public TransactionResponseDTO getById(@PathVariable UUID id) {
         return service.getById(id);
     }
 
     // GET /api/transactions/{id}/detail: transaction + stored decision inputs + review history
+    @Operation(summary = "Transaction with decision inputs and review history", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/{id}/detail")
     public TransactionDetailDTO detail(@PathVariable UUID id) {
         return service.getDetail(id);
     }
 
     // POST /api/transactions/{id}/review: an analyst confirms fraud, marks legitimate, or asks for more review
+    @Operation(summary = "Record an analyst review", description = "The reviewer is the logged-in user; a reviewer field in the body is ignored.", security = @SecurityRequirement(name = "bearerAuth"))
     @PostMapping("/{id}/review")
     public ResponseEntity<ReviewResponseDTO> review(
             @PathVariable UUID id,
