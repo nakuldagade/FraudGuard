@@ -8,11 +8,12 @@ The snapshot's field names are not hard-coded by position: each feature is looke
 (snake_case or camelCase, any nesting depth). If a name cannot be found, we say so loudly.
 """
 import json
+import os
 import sys
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import numpy as np
 
@@ -88,11 +89,26 @@ def extract_row(item: dict):
     return row, missing
 
 
+def admin_token(api: str) -> str:
+    """The label export is ADMIN-only, so log in with FRAUDGUARD_ADMIN_USERNAME / FRAUDGUARD_ADMIN_PASSWORD."""
+    username = os.environ.get("FRAUDGUARD_ADMIN_USERNAME")
+    password = os.environ.get("FRAUDGUARD_ADMIN_PASSWORD")
+    if not username or not password:
+        raise SystemExit("Set FRAUDGUARD_ADMIN_USERNAME and FRAUDGUARD_ADMIN_PASSWORD (see .env.example), "
+                         "or pass --from-file with a saved export.")
+    request = Request(f"{api}/api/auth/login", method="POST",
+                      data=json.dumps({"username": username, "password": password}).encode(),
+                      headers={"Content-Type": "application/json"})
+    with urlopen(request, timeout=30) as response:
+        return json.loads(response.read())["accessToken"]
+
+
 def load_labeled(api: str | None = None, path: str | None = None) -> list[dict]:
     """Reads the export from a file, or downloads it from the backend (and keeps a copy)."""
     if path:
         return json.loads(Path(path).read_text())
-    with urlopen(f"{api}/api/feedback/labels", timeout=30) as response:
+    request = Request(f"{api}/api/feedback/labels", headers={"Authorization": f"Bearer {admin_token(api)}"})
+    with urlopen(request, timeout=30) as response:
         items = json.loads(response.read())
     FEEDBACK_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")

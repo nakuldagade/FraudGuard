@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '../auth/useAuth';
 import { submitReview } from '../lib/api';
 import type { ReviewAction } from '../types';
 
@@ -7,39 +8,20 @@ interface Props {
   onDone: () => void; // tell App to refresh the list, header and panel
 }
 
-const STORAGE_KEY = 'fraudguard.reviewer';
-
 export function ReviewActions({ transactionId, onDone }: Props) {
-  // Remember the analyst's name between visits (there is no login until Phase 10)
-  const [reviewer, setReviewer] = useState(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEY) ?? '';
-    } catch {
-      return '';
-    }
-  });
+  const { session } = useAuth(); // the reviewer is whoever is logged in; the server reads it from the token
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function act(action: ReviewAction) {
-    if (!reviewer.trim()) {
-      setError('Enter your name before submitting.');
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
       await submitReview(transactionId, {
         action,
-        reviewer: reviewer.trim(),
         note: note.trim() || undefined, // omit the field when empty
       });
-      try {
-        localStorage.setItem(STORAGE_KEY, reviewer.trim());
-      } catch {
-        /* storage can be unavailable; the name just won't be remembered */
-      }
       setNote('');
       onDone();
     } catch (e) {
@@ -52,14 +34,7 @@ export function ReviewActions({ transactionId, onDone }: Props) {
   return (
     <section>
       <h3>Analyst action</h3>
-      <input
-        type="text"
-        placeholder="Your name"
-        maxLength={64}
-        value={reviewer}
-        onChange={(e) => setReviewer(e.target.value)}
-        style={{ width: '100%', marginBottom: 8 }}
-      />
+      <p style={{ margin: '0 0 8px', fontSize: 13 }}>Reviewing as <strong>{session?.username}</strong></p>
       <textarea
         placeholder="Note (optional, max 500 characters)"
         maxLength={500}

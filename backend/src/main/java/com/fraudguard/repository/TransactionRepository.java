@@ -3,10 +3,12 @@ package com.fraudguard.repository;
 import com.fraudguard.entity.ReviewState;
 import com.fraudguard.entity.Transaction;
 import com.fraudguard.entity.TransactionStatus;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -38,4 +40,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     // Transactions decided without an ML score (the ML service was unavailable)
     long countByModelVersionIsNull();
+
+    // Phase 10: PENDING transactions older than a cutoff. The pipeline normally decides within a
+    // second or two, so an old PENDING row means its event was lost (e.g. dead-lettered).
+    long countByStatusAndCreatedAtBefore(TransactionStatus status, Instant cutoff);
+
+    // The oldest stuck rows first, capped by the Pageable, for the re-drive endpoint
+    List<Transaction> findByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
+            TransactionStatus status, Instant cutoff, Pageable pageable);
 }

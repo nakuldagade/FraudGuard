@@ -1,11 +1,13 @@
 package com.fraudguard.config;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.ConsumerAwareRecordRecoverer;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
@@ -44,18 +46,27 @@ public class KafkaConfig {
     // Error handling for every @KafkaListener (Spring Boot picks this bean up automatically).
     // A failed message is retried 3 times, waiting 1s, 2s, 4s in between. If it still fails,
     // it is copied to the dead-letter topic so it doesn't block the messages behind it.
+    // Phase 10: every event that reaches the dead-letter topic is also counted
+    // (fraudguard_dlq_events_total, labelled with the kind of exception that caused it).
     @Bean
-    DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, String> kafkaTemplate) {
+    DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, String> kafkaTemplate, MeterRegistry metrics) {
         // -1 = let Kafka choose the partition in the DLQ topic
         DeadLetterPublishingRecoverer toDlq = new DeadLetterPublishingRecoverer(
                 kafkaTemplate, (record, exception) -> new TopicPartition(TOPIC_DLQ, -1));
+
+        // Count first, then publish to the DLQ as before
+        ConsumerAwareRecordRecoverer countingRecoverer = (record, consumer, exception) -> {
+            Throwable cause = exception.getCause() != null ? exception.getCause() : exception;
+            metrics.counter("fraudguard.dlq.events", "cause", cause.getClass().getSimpleName()).increment();
+            toDlq.accept(record, consumer, exception);
+        };
 
         ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(3);
         backOff.setInitialInterval(1_000L);   // first wait: 1 second
         backOff.setMultiplier(2.0);           // then double it each time
         backOff.setMaxInterval(10_000L);      // never wait more than 10 seconds
 
-        DefaultErrorHandler handler = new DefaultErrorHandler(toDlq, backOff);
+        DefaultErrorHandler handler = new DefaultErrorHandler(countingRecoverer, backOff);
         // A malformed message will never succeed, so don't waste retries on it: straight to the DLQ
         handler.addNotRetryableExceptions(IllegalArgumentException.class);
         return handler;

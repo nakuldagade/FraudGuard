@@ -1,9 +1,10 @@
 package com.fraudguard.controller;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static com.fraudguard.TestAuth.analyst;
+import static com.fraudguard.TestAuth.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static com.fraudguard.TestAuth.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -122,9 +123,10 @@ class TransactionReviewApiTest {
     void reviewIsRecordedSeparatelyFromTheModelDecision() throws Exception {
         Transaction t = save(newAccount(), TransactionStatus.REVIEW, 45, T0);
 
-        mvc.perform(post("/api/transactions/" + t.getId() + "/review")
+        // The body claims to be "mallory", but the reviewer is whoever is logged in
+        mvc.perform(post("/api/transactions/" + t.getId() + "/review").with(analyst("nakul"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"action\":\"CONFIRM_FRAUD\",\"note\":\"Card was reported stolen\",\"reviewer\":\"nakul\"}"))
+                        .content("{\"action\":\"CONFIRM_FRAUD\",\"note\":\"Card was reported stolen\",\"reviewer\":\"mallory\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.action").value("CONFIRM_FRAUD"))
                 .andExpect(jsonPath("$.reviewer").value("nakul"))
@@ -166,14 +168,14 @@ class TransactionReviewApiTest {
     }
 
     @Test
-    void reviewWithoutReviewerIsRejected() throws Exception {
+    void reviewerFieldIsOptionalBecauseTheLoggedInUserIsUsed() throws Exception {
         Transaction t = save(newAccount(), TransactionStatus.REVIEW, 45, T0);
 
-        mvc.perform(post("/api/transactions/" + t.getId() + "/review")
+        mvc.perform(post("/api/transactions/" + t.getId() + "/review").with(analyst("priya"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"action\":\"CONFIRM_FRAUD\",\"note\":\"x\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors.reviewer").exists());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reviewer").value("priya"));
     }
 
     @Test
@@ -246,7 +248,7 @@ class TransactionReviewApiTest {
 
     private void review(UUID id, String action, String note, String reviewer) throws Exception {
         String body = "{\"action\":\"" + action + "\",\"note\":\"" + note + "\",\"reviewer\":\"" + reviewer + "\"}";
-        mvc.perform(post("/api/transactions/" + id + "/review")
+        mvc.perform(post("/api/transactions/" + id + "/review").with(analyst(reviewer))
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());
     }

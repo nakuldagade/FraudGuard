@@ -7,20 +7,49 @@ import type {
   TransactionDetail,
   TransactionFilters,
 } from '../types';
+import { loadSession, notifyUnauthorized } from '../auth/session';
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
-// Small wrapper: throws a readable Error on any non-2xx response
+// Small wrapper: adds the login token, and throws a readable Error on any non-2xx response.
+// A 401 means the token is missing, expired or invalid: the session is cleared and the login page shows.
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = loadSession()?.accessToken;
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
   });
+  if (res.status === 401) {
+    notifyUnauthorized();
+    throw new Error('Your session has ended. Please sign in again.');
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`${res.status} ${res.statusText}${text ? `: ${text}` : ''}`);
   }
   return res.json() as Promise<T>;
+}
+
+// POST /api/auth/login. Not routed through request(): a wrong password is a normal 401 to show, not a lost session.
+export async function loginRequest(username: string, password: string) {
+  const res = await fetch(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  if (res.status === 401) throw new Error('Invalid username or password');
+  if (res.status === 429) throw new Error('Too many attempts. Try again in a minute.');
+  if (!res.ok) throw new Error(`Sign-in failed (${res.status})`);
+  return (await res.json()) as {
+    accessToken: string;
+    expiresInSeconds: number;
+    username: string;
+    role: 'ANALYST' | 'ADMIN';
+  };
 }
 
 // GET /api/transactions/summary
@@ -47,7 +76,7 @@ export const fetchTransaction = (id: string) =>
 // POST /api/transactions/{id}/review -> 201 with the saved review entry
 export const submitReview = (
   id: string,
-  body: { action: ReviewAction; reviewer: string; note?: string },
+  body: { action: ReviewAction; note?: string }, // the reviewer is the logged-in user (the server reads it from the token)
 ) =>
   request<ReviewEntry>(`/api/transactions/${id}/review`, {
     method: 'POST',

@@ -1,3 +1,4 @@
+import { useAuth } from '../auth/useAuth';
 import type { DashboardSummary } from '../types';
 
 interface Props {
@@ -17,6 +18,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
 
 // Top bar: title + the summary numbers
 export function SummaryHeader({ summary, error }: Props) {
+  const { session, logout } = useAuth();
   // Show "–" until the first response arrives; missing keys count as 0
   const n = (v?: number) => (v === undefined ? '–' : v.toLocaleString('en-IN'));
   const byStatus = (s: keyof NonNullable<typeof summary>['byStatus']) =>
@@ -37,6 +39,13 @@ export function SummaryHeader({ summary, error }: Props) {
         <Stat label="Pending" value={n(byStatus('PENDING'))} />
         <Stat label="Awaiting analyst" value={n(summary?.awaitingReview)} tone="warn" />
       </div>
+
+      {session && (
+        <div className="whoami">
+          <span>{session.username} ({session.role.toLowerCase()})</span>
+          <button className="btn" onClick={logout}>Log out</button>
+        </div>
+      )}
 
       {error && <div className="banner error">Could not load summary: {error}</div>}
     </header>

@@ -4,14 +4,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import DEFAULT_MODEL_PATH, app
+from app.main import app, resolve_model_path
 
 
 @pytest.fixture(scope="module")
 def client():
-    if not Path(DEFAULT_MODEL_PATH).exists():
+    if not resolve_model_path().exists():
         pytest.skip("model file missing: run  python training/train.py  first")
-    with TestClient(app) as c:      # "with" runs the startup code that loads the model
+    with TestClient(app, headers={"X-Service-Token": "test-service-token"}) as c:      # "with" runs the startup code that loads the model
         yield c
 
 

@@ -209,7 +209,8 @@ def main():
         registry["active"] = version
         REGISTRY.write_text(json.dumps(registry, indent=2) + "\n")
         print(f"PROMOTED: active model is now {version} (was {active_version}).")
-        print("Make the running ML service use it:  curl -X POST http://localhost:8000/admin/reload")
+        print("Make the running ML service use it:  curl -X POST http://127.0.0.1:8000/admin/reload "
+              "-H \"X-Admin-Token: $ADMIN_TOKEN\"")
     elif passes:
         print("Gate passed. Re-run with --promote to activate it.")
     else:

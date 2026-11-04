@@ -88,18 +88,20 @@ set `POLICY_ML_REVIEW_AT` and `POLICY_ML_VERY_HIGH_AT` for the ML service to the
 
 ## Operating it
 
-Start both services, then:
+Start both services with the variables from `.env` loaded (`set -a; source .env; set +a`, see
+[observability.md](observability.md#starting-and-stopping-the-stack) for the full start-up), then:
 
 ~~~bash
-# 1. generate demo traffic and synthetic labels  (frontend/)
+# 1. generate demo traffic and synthetic labels  (frontend/; logs in as the seed user)
 npm run seed -- --label
 
 # 2. train a challenger and see the report        (ml-service/, venv active)
+#    The label export is ADMIN-only: retrain.py logs in with FRAUDGUARD_ADMIN_USERNAME / _PASSWORD.
 python training/retrain.py --split stratified
 
 # 3. promote it if the gate passed, then load it into the running service
 python training/retrain.py --split stratified --promote
-curl -X POST http://127.0.0.1:8000/admin/reload
+curl -X POST http://127.0.0.1:8000/admin/reload -H "X-Admin-Token: $ADMIN_TOKEN"
 ~~~
 
 `--split stratified` is for the demo data only. The seed creates its suspicious transactions last, so
@@ -117,12 +119,12 @@ service disagree, which means a promotion happened without a reload.
 
 | What | Where |
 |---|---|
-| Labelled training rows | `GET /api/feedback/labels` |
-| Label counts | `GET /api/feedback/stats` |
-| Transactions scored per model | `GET /api/feedback/models` |
-| Live model and promotion history | `GET /api/feedback/registry` (proxied from the ML service) |
-| ML service: loaded vs registry model | `GET /admin/registry` |
-| ML service: switch model | `POST /admin/reload` |
+| Labelled training rows | `GET /api/feedback/labels` (ADMIN only) |
+| Label counts | `GET /api/feedback/stats` (ANALYST or ADMIN) |
+| Transactions scored per model | `GET /api/feedback/models` (ANALYST or ADMIN) |
+| Live model and promotion history | `GET /api/feedback/registry` (ANALYST or ADMIN; proxied from the ML service) |
+| ML service: loaded vs registry model | `GET /admin/registry` (header `X-Admin-Token`) |
+| ML service: switch model | `POST /admin/reload` (header `X-Admin-Token`) |
 | Retraining and gate | `ml-service/training/retrain.py` |
 | Feature extraction from snapshots | `ml-service/training/build_dataset.py` |
 | Registry file | `ml-service/models/registry.json` |
@@ -137,9 +139,9 @@ service disagree, which means a promotion happened without a reload.
 - **Small evaluation sets.** With a few hundred labels the test slice holds only tens of fraud cases,
   so one transaction can move PR-AUC by several points. The script warns when the test slice has
   fewer than 5 fraud rows.
-- **Unprotected admin routes.** `/admin/reload` and `/admin/registry` have no authentication, and
-  `/api/feedback/*` exposes training data. Phase 10 should restrict them. Until then keep the ML
-  service on localhost.
+- **Shared-secret protection only.** The ML service's `/admin/*` routes are protected by a single shared
+  token (`ADMIN_TOKEN`), not by per-person accounts, so there is no record of who reloaded a model.
+  The label export needs an ADMIN login, but a stolen admin token still exposes the training data.
 - **Unpaged export.** `/api/feedback/labels` returns everything in one response. Fine at demo scale;
   a real system would page or stream it.
 - **Manual trigger.** Retraining runs when someone runs the script. There is no schedule and no drift

@@ -225,3 +225,5 @@ tbody tr.selected { background: #eaf0ff; }
 .feedback .ok { color: var(--good); }
 .feedback .banner { margin-bottom: 8px; }
 .mini-table th, .mini-table td { padding: 5px 8px; font-size: 0.8rem; }
+
+.whoami { display: flex; align-items: center; gap: 8px; font-size: 13px; }

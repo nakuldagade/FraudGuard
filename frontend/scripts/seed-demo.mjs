@@ -5,7 +5,11 @@
 //          npm run seed -- --review          (also record a few analyst reviews)
 //          npm run seed -- --label           (also label EVERY new row from its scenario's ground
 //                                             truth, as reviewer "demo-oracle": training data for Phase 9)
-// Needs:   backend on API_URL (default http://localhost:8080), Node 18+.
+// Needs:   backend on API_URL (default http://localhost:8080), Node 18+, and these environment variables
+//          (see .env.example; run `set -a; source .env; set +a` first):
+//            INGEST_API_KEY             sent as X-API-Key when creating transactions
+//            SEED_USERNAME/SEED_PASSWORD  log in as the demo analyst; its token is used for reads and
+//                                         reviews, so reviews are attributed to that user (demo-oracle)
 // Tip:     start the ML service first, otherwise rows get ML_UNAVAILABLE.
 //
 // Why two phases: velocity and "unusual amount" rules depend on each account's
@@ -22,6 +26,11 @@ const API = process.env.API_URL ?? 'http://localhost:8080';
 const WITH_REVIEWS = process.argv.includes('--review');
 const WITH_LABELS = process.argv.includes('--label');
 
+const INGEST_API_KEY = process.env.INGEST_API_KEY;
+const SEED_USERNAME = process.env.SEED_USERNAME;
+const SEED_PASSWORD = process.env.SEED_PASSWORD;
+let TOKEN = null; // set by login() at the start of main()
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rand = (min, max) => Math.random() * (max - min) + min;
 const money = (min, max) => Math.round(rand(min, max) * 100) / 100;
@@ -37,6 +46,29 @@ const FOREIGN = ['US', 'GB', 'NG', 'RU', 'BR'];
 // ---------- API helpers ----------
 let consecutiveFailures = 0;
 
+// Logs in as the seed user (an ANALYST) and remembers the token for authedFetch()
+async function login() {
+    if (!INGEST_API_KEY || !SEED_USERNAME || !SEED_PASSWORD) {
+        console.error('Set INGEST_API_KEY, SEED_USERNAME and SEED_PASSWORD (see .env.example), then run:');
+        console.error('  set -a; source .env; set +a');
+        process.exit(1);
+    }
+    const res = await fetch(`${API}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: SEED_USERNAME, password: SEED_PASSWORD }),
+    });
+    if (!res.ok) {
+        console.error(`Login as ${SEED_USERNAME} failed (${res.status}). Check SEED_USERNAME/SEED_PASSWORD and that the user exists.`);
+        process.exit(1);
+    }
+    TOKEN = (await res.json()).accessToken;
+}
+
+// fetch() with the login token attached
+const authedFetch = (url, init = {}) =>
+    fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${TOKEN}` } });
+
 async function send(tx) {
     const body = {
         transactionType: pick(TYPES),
@@ -48,7 +80,7 @@ async function send(tx) {
     };
     const res = await fetch(`${API}/api/transactions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': randomUUID() },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': randomUUID(), 'X-API-Key': INGEST_API_KEY },
         body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -114,9 +146,11 @@ const scenarios = [
 async function main() {
     console.log(`Seeding ${API} (run ${RUN})`);
 
+    await login();
+
     // Fail fast if the backend is not reachable
     try {
-        await fetch(`${API}/api/transactions/summary`);
+        await fetch(`${API}/actuator/health/liveness`);
     } catch {
         console.error(`Cannot reach ${API}. Is the Spring Boot backend running?`);
         process.exit(1);
@@ -196,7 +230,7 @@ async function waitForDecisions(ids, timeoutMs = 90_000) {
     const deadline = Date.now() + timeoutMs;
     while (pending.size > 0 && Date.now() < deadline) {
         for (const id of [...pending]) {
-            const res = await fetch(`${API}/api/transactions/${id}`).catch(() => null);
+            const res = await authedFetch(`${API}/api/transactions/${id}`).catch(() => null);
             if (res && res.ok) {
                 const t = await res.json();
                 if (t.status !== 'PENDING') pending.delete(id);
@@ -210,7 +244,7 @@ async function waitForDecisions(ids, timeoutMs = 90_000) {
 // POST one analyst review; retries on 429 (rate limit). Returns true on success.
 async function postReview(id, body) {
     for (let attempt = 0; attempt < 3; attempt++) {
-        const res = await fetch(`${API}/api/transactions/${id}/review`, {
+        const res = await authedFetch(`${API}/api/transactions/${id}/review`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -229,7 +263,7 @@ async function postReview(id, body) {
 // Optional: act on a few REVIEW/BLOCKED rows so the review history has content
 async function recordSomeReviews() {
     console.log('Recording sample analyst reviews…');
-    const res = await fetch(`${API}/api/transactions?status=BLOCKED&status=REVIEW&reviewState=UNREVIEWED&size=12`);
+    const res = await authedFetch(`${API}/api/transactions?status=BLOCKED&status=REVIEW&reviewState=UNREVIEWED&size=12`);
     if (!res.ok) return;
     const page = await res.json();
     const actions = [
@@ -239,20 +273,19 @@ async function recordSomeReviews() {
     ];
     for (const [i, t] of page.content.slice(0, 6).entries()) {
         const [action, note] = actions[i % actions.length];
-        await postReview(t.id, { action, note, reviewer: 'demo-analyst' });
+        await postReview(t.id, { action, note });   // the reviewer is the logged-in seed user
     }
 }
 
 // --label: record the scenario's ground truth as the analyst verdict for every transaction.
 // Runs after --review, so these (newer) reviews win: the newest review is the label.
 async function labelEverything(truth) {
-    console.log(`Labelling ${truth.length} transactions from scenario ground truth (reviewer demo-oracle)…`);
+    console.log(`Labelling ${truth.length} transactions from scenario ground truth (as the seed user)…`);
     let ok = 0;
     for (const t of truth) {
         const action = t.label === 1 ? 'CONFIRM_FRAUD' : 'MARK_LEGITIMATE';
         const done = await postReview(t.id, {
             action,
-            reviewer: 'demo-oracle',
             note: `Synthetic ground truth: ${t.scenario}`,
         });
         if (done) ok++;
@@ -263,7 +296,7 @@ async function labelEverything(truth) {
 }
 
 async function printSummary() {
-    const res = await fetch(`${API}/api/transactions/summary`);
+    const res = await authedFetch(`${API}/api/transactions/summary`);
     if (!res.ok) return;
     const s = await res.json();
     console.log('\nDatabase now has:');
@@ -272,7 +305,7 @@ async function printSummary() {
     console.log('  by review state:', s.byReviewState);
 
     if (WITH_LABELS) {
-        const f = await fetch(`${API}/api/feedback/stats`);
+        const f = await authedFetch(`${API}/api/feedback/stats`);
         if (f.ok) console.log('  feedback labels:', await f.json());
     }
 }

@@ -2,12 +2,18 @@
 spring:
   application:
     name: fraudguard
+  lifecycle:
+    timeout-per-shutdown-phase: 20s   # how long graceful shutdown may wait (HTTP, then the Kafka listener)
   profiles:
     default: local            # used when no profile is chosen explicitly
   jpa:
     open-in-view: false       # don't hold DB sessions open while rendering responses
     hibernate:
       ddl-auto: validate      # Flyway owns the schema; Hibernate only CHECKS it matches
+  data:
+    redis:
+      timeout: 2s             # per Redis command. The default is 60 s, which would stall the Kafka consumer for
+      connect-timeout: 2s     # minutes during a Redis outage instead of failing fast into the retry/DLQ path
   kafka:
     producer:
       acks: all               # wait until the broker has safely stored the message
@@ -20,14 +26,49 @@ spring:
 
 server:
   port: 8080
+  shutdown: graceful          # on stop: finish in-flight requests before exiting
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info  # expose only these actuator endpoints
+        include: health,info,prometheus,metrics   # /actuator/prometheus is what Prometheus scrapes
+  endpoint:
+    health:
+      probes:
+        enabled: true                 # adds /actuator/health/liveness and /actuator/health/readiness
+      show-details: when_authorized   # the status is public; database and Redis details need the METRICS login
+      roles: METRICS
+      group:
+        readiness:
+          include: readinessState,db,redis   # "ready" = can reach PostgreSQL and Redis (ML is optional: rules still decide)
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true    # histogram buckets, so Grafana can show p95 latency per URI
+    tags:
+      application: fraudguard         # added to every metric, so dashboards can filter by service
 
 fraudguard:
+  # Login, roles and keys. Every secret comes from an environment variable (see .env.example): none is committed.
+  security:
+    token-ttl-minutes: 60
+    jwt-secret: ${FRAUDGUARD_JWT_SECRET:}              # at least 32 bytes; blank only works on the local profile
+    ingest-api-keys: ${FRAUDGUARD_INGEST_API_KEYS:}    # comma-separated keys accepted on POST /api/transactions
+    metrics-username: ${FRAUDGUARD_METRICS_USERNAME:prometheus}
+    metrics-password: ${FRAUDGUARD_METRICS_PASSWORD:}  # Prometheus logs in with this
+    login-attempts-per-minute: 5
+    # First users, created only when the users table is empty
+    admin-username: ${FRAUDGUARD_ADMIN_USERNAME:}
+    admin-password: ${FRAUDGUARD_ADMIN_PASSWORD:}
+    analyst-username: ${FRAUDGUARD_ANALYST_USERNAME:}
+    analyst-password: ${FRAUDGUARD_ANALYST_PASSWORD:}
+    seed-username: ${FRAUDGUARD_SEED_USERNAME:}        # the demo labeller (an ANALYST)
+    seed-password: ${FRAUDGUARD_SEED_PASSWORD:}
+
+  reliability:
+    stuck-after-seconds: 120    # a transaction PENDING longer than this counts as "stuck" (gauge + re-drive)
+
   # Which web pages (origins) may call the API from a browser. Comma-separated.
   cors:
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173   # the React dev server
@@ -39,6 +80,8 @@ fraudguard:
     timeout-ms: 1500          # give up on a call after this long
     failure-threshold: 3      # this many failures in a row open the circuit breaker
     open-seconds: 30          # ...and ML calls are skipped for this long
+    service-token: ${SERVICE_TOKEN:}   # sent as X-Service-Token on /score (secret: from the environment)
+    admin-token: ${ADMIN_TOKEN:}       # sent as X-Admin-Token on /admin/registry
 
   # The final decision policy: combines rule verdict + ML score + velocity features.
   # Change a number here and restart. Bump policy-version when you change the policy, so every

@@ -13,4 +13,10 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> 
 
     // Used by tests to find the outbox rows belonging to one transaction
     List<OutboxEvent> findByAggregateId(UUID aggregateId);
+
+    // Phase 10: how many events are waiting to be published (the outbox backlog metric)
+    long countByPublishedAtIsNull();
+
+    // Phase 10: is an event for this transaction already waiting to be published? (re-drive skips those)
+    boolean existsByAggregateIdAndPublishedAtIsNull(UUID aggregateId);
 }

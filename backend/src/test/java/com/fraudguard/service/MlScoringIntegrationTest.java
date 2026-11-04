@@ -2,7 +2,7 @@ package com.fraudguard.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static com.fraudguard.TestAuth.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 

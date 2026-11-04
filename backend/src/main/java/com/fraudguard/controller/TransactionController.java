@@ -19,6 +19,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -91,8 +92,9 @@ public class TransactionController {
     @PostMapping("/{id}/review")
     public ResponseEntity<ReviewResponseDTO> review(
             @PathVariable UUID id,
-            @Valid @RequestBody TransactionStatusUpdateDTO request) {
-        ReviewResponseDTO saved = service.review(id, request);
+            @Valid @RequestBody TransactionStatusUpdateDTO request,
+            Authentication authentication) {                  // the logged-in analyst (from the JWT)
+        ReviewResponseDTO saved = service.review(id, request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 }

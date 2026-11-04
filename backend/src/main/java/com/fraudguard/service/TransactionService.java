@@ -33,6 +33,7 @@ public interface TransactionService {
     // Dashboard detail screen: the transaction, its stored decision inputs, and the review history
     TransactionDetailDTO getDetail(UUID id);
 
-    // Records an analyst action and updates the transaction's review state
-    ReviewResponseDTO review(UUID id, TransactionStatusUpdateDTO request);
+    // Records an analyst action and updates the transaction's review state.
+    // reviewer is the authenticated user's name (taken from the login token, never from the request body).
+    ReviewResponseDTO review(UUID id, TransactionStatusUpdateDTO request, String reviewer);
 }

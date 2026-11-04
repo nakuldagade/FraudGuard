@@ -1,7 +1,7 @@
 package com.fraudguard.controller;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static com.fraudguard.TestAuth.get;
+import static com.fraudguard.TestAuth.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fraudguard.config.TestcontainersConfig;

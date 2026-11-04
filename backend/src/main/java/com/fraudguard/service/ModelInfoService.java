@@ -32,6 +32,10 @@ public class ModelInfoService {
     @Value("${fraudguard.ml.base-url}")
     private String mlBaseUrl;
 
+    // Sent as X-Admin-Token: the ML service protects /admin/* with it
+    @Value("${fraudguard.ml.admin-token:}")
+    private String mlAdminToken;
+
     // Initialised here, so Lombok leaves it out of the constructor
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(2))
@@ -54,10 +58,13 @@ public class ModelInfoService {
     // Passed through as JSON. If the ML service is down, the dashboard card shows a note instead.
     public JsonNode registry() {
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(mlBaseUrl + "/admin/registry"))
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(mlBaseUrl + "/admin/registry"))
                     .timeout(Duration.ofSeconds(2))
-                    .GET()
-                    .build();
+                    .GET();
+            if (mlAdminToken != null && !mlAdminToken.isBlank()) {
+                builder.header("X-Admin-Token", mlAdminToken);
+            }
+            HttpRequest request = builder.build();
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,

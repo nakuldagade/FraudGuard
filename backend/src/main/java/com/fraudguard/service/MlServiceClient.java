@@ -4,6 +4,10 @@ import com.fraudguard.dto.MlScoreRequest;
 import com.fraudguard.dto.MlScoreResponse;
 import com.fraudguard.dto.TransactionEvent;
 import com.fraudguard.dto.VelocityFeatures;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -26,6 +30,9 @@ import org.springframework.web.client.RestClient;
  *   - Circuit breaker: after N failures in a row, calls are skipped for a while instead of each
  *     one waiting for the timeout. After that pause ONE trial call is allowed: success closes the
  *     circuit, another failure reopens it straight away.
+ *
+ * Metrics (Phase 10): every call is counted by outcome (success / failure / circuit_open / disabled),
+ * calls are timed, and a gauge shows whether the circuit is currently open.
  */
 @Service
 @Slf4j
@@ -36,6 +43,7 @@ public class MlServiceClient {
     private final int failureThreshold;
     private final long openForMillis;
     private final LongSupplier clock;                 // milliseconds; replaceable so tests can control time
+    private final MeterRegistry metrics;
 
     private final AtomicInteger consecutiveFailures = new AtomicInteger();
     private volatile long circuitOpenUntil = 0;       // while now < this, ML calls are skipped
@@ -47,34 +55,60 @@ public class MlServiceClient {
             @Value("${fraudguard.ml.base-url:http://localhost:8000}") String baseUrl,
             @Value("${fraudguard.ml.timeout-ms:1500}") long timeoutMillis,
             @Value("${fraudguard.ml.failure-threshold:3}") int failureThreshold,
-            @Value("${fraudguard.ml.open-seconds:30}") long openSeconds) {
+            @Value("${fraudguard.ml.open-seconds:30}") long openSeconds,
+            @Value("${fraudguard.ml.service-token:}") String serviceToken,
+            MeterRegistry metrics) {
         this(enabled, baseUrl, Duration.ofMillis(timeoutMillis), failureThreshold,
-                Duration.ofSeconds(openSeconds), System::currentTimeMillis);
+                Duration.ofSeconds(openSeconds), System::currentTimeMillis, metrics, serviceToken);
     }
 
-    // Used by tests, which pass their own clock
+    // Used by existing tests, which pass their own clock and don't care about metrics
     MlServiceClient(boolean enabled, String baseUrl, Duration timeout, int failureThreshold,
                     Duration openFor, LongSupplier clock) {
+        this(enabled, baseUrl, timeout, failureThreshold, openFor, clock, new SimpleMeterRegistry());
+    }
+
+    MlServiceClient(boolean enabled, String baseUrl, Duration timeout, int failureThreshold,
+                    Duration openFor, LongSupplier clock, MeterRegistry metrics) {
+        this(enabled, baseUrl, timeout, failureThreshold, openFor, clock, metrics, "");
+    }
+
+    MlServiceClient(boolean enabled, String baseUrl, Duration timeout, int failureThreshold,
+                    Duration openFor, LongSupplier clock, MeterRegistry metrics, String serviceToken) {
         this.enabled = enabled;
         this.failureThreshold = failureThreshold;
         this.openForMillis = openFor.toMillis();
         this.clock = clock;
+        this.metrics = metrics;
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout((int) timeout.toMillis());   // how long to wait to connect
         factory.setReadTimeout((int) timeout.toMillis());      // how long to wait for the answer
-        this.restClient = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+        RestClient.Builder builder = RestClient.builder().baseUrl(baseUrl).requestFactory(factory);
+        if (serviceToken != null && !serviceToken.isBlank()) {
+            builder.defaultHeader("X-Service-Token", serviceToken);   // the ML service rejects /score without it
+        }
+        this.restClient = builder.build();
+
+        // 1 while the circuit is open (ML calls are being skipped), 0 otherwise
+        Gauge.builder("fraudguard.ml.circuit.open", this,
+                        c -> c.clock.getAsLong() < c.circuitOpenUntil ? 1.0 : 0.0)
+                .description("1 while the ML circuit breaker is open")
+                .register(metrics);
     }
 
     /** Returns the score, or empty if scoring isn't available right now. Never throws. */
     public Optional<MlScoreResponse> score(TransactionEvent.Payload payload, VelocityFeatures features) {
         if (!enabled) {
+            count("disabled");
             return Optional.empty();
         }
         if (clock.getAsLong() < circuitOpenUntil) {
             log.debug("ML circuit open, skipping scoring for transactionId={}", payload.transactionId());
+            count("circuit_open");
             return Optional.empty();
         }
+        Timer.Sample sample = Timer.start(metrics);
         try {
             MlScoreResponse response = restClient.post()
                     .uri("/score")
@@ -86,11 +120,27 @@ public class MlServiceClient {
                 throw new IllegalStateException("ML service returned an invalid response");
             }
             consecutiveFailures.set(0);              // a success closes the circuit
+            sample.stop(callTimer("success"));
+            count("success");
             return Optional.of(response);
         } catch (RuntimeException e) {
+            sample.stop(callTimer("failure"));
+            count("failure");
             recordFailure(e);
             return Optional.empty();
         }
+    }
+
+    private void count(String outcome) {
+        metrics.counter("fraudguard.ml.calls", "outcome", outcome).increment();
+    }
+
+    private Timer callTimer(String outcome) {
+        return Timer.builder("fraudguard.ml.call")
+                .description("Time spent calling the ML service")
+                .tag("outcome", outcome)
+                .publishPercentileHistogram()
+                .register(metrics);
     }
 
     private void recordFailure(RuntimeException e) {

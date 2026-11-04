@@ -148,14 +148,14 @@ public class TransactionServiceImpl implements TransactionService {
     // The model's decision (status, reason codes, scores) is NOT touched.
     @Override
     @Transactional
-    public ReviewResponseDTO review(UUID id, TransactionStatusUpdateDTO request) {
+    public ReviewResponseDTO review(UUID id, TransactionStatusUpdateDTO request, String reviewer) {
         Transaction transaction = findOrThrow(id);
 
         AnalystReview review = new AnalystReview();
         review.setTransactionId(id);
         review.setAction(request.action());
         review.setNote(request.note() == null || request.note().isBlank() ? null : request.note().trim());
-        review.setReviewer(request.reviewer().trim());
+        review.setReviewer(reviewer);   // the logged-in user, not whatever the request body claims
         AnalystReview saved = reviewRepository.save(review);
 
         transaction.setReviewState(request.action().toState());   // the latest action defines the current state
@@ -187,18 +187,23 @@ public class TransactionServiceImpl implements TransactionService {
     // The message key is the accountId: Kafka sends all messages with the same key to the same
     // partition, so events for one account are processed in the order they were created.
     private OutboxEvent toOutboxEvent(Transaction t) {
+        return buildOutboxEvent(t, objectMapper);
+    }
+
+    // Static so the re-drive service builds exactly the same row (new eventId each time).
+    static OutboxEvent buildOutboxEvent(Transaction t, ObjectMapper objectMapper) {
         TransactionEvent event = TransactionEvent.created(t);
         OutboxEvent outbox = new OutboxEvent();
         outbox.setId(event.eventId());
         outbox.setAggregateId(t.getId());
         outbox.setTopic(KafkaConfig.TOPIC_RAW);
         outbox.setMessageKey(t.getAccountId());
-        outbox.setPayload(toJson(event));
+        outbox.setPayload(toJson(objectMapper, event));
         outbox.setCreatedAt(Instant.now());
         return outbox;
     }
 
-    private String toJson(TransactionEvent event) {
+    private static String toJson(ObjectMapper objectMapper, TransactionEvent event) {
         try {
             return objectMapper.writeValueAsString(event);
         } catch (JsonProcessingException e) {
