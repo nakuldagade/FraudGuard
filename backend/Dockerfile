@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ---- build stage: compile and split the jar into layers ----
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /src
 # Dependencies first: this layer is reused until pom.xml changes
 COPY pom.xml .
