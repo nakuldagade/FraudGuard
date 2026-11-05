@@ -532,11 +532,6 @@ FraudGuard/
 - **Retraining is manual** and re-drive of stuck transactions is manual. There is no drift monitoring.
 - **Performance numbers** come from one laptop run per test; see the caveats in [docs/performance.md](docs/performance.md).
 
-## Future work
-
-Alertmanager with Slack or email, scheduled retraining and drift monitoring, refresh tokens, paging for the label export, live
-dashboard updates instead of 10-second polling, an accessibility pass, a second model trained on a public dataset (PaySim or the
-ULB credit-card set) shown as an offline benchmark.
 
 ## Author, contributing and licence
 
