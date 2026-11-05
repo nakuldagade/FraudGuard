@@ -1,12 +1,14 @@
 # FraudGuard: real-time fraud detection platform
 
-[![CI](https://github.com/OWNER/fraud-detection-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/fraud-detection-platform/actions/workflows/ci.yml)
-[![Security](https://github.com/OWNER/fraud-detection-platform/actions/workflows/security.yml/badge.svg)](https://github.com/OWNER/fraud-detection-platform/actions/workflows/security.yml)
-<!-- Replace OWNER with the GitHub user or organisation after publishing (docs/release-checklist.md). -->
+[![CI](https://github.com/nakuldagade/FraudGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/nakuldagade/FraudGuard/actions/workflows/ci.yml)
+[![Security](https://github.com/nakuldagade/FraudGuard/actions/workflows/security.yml/badge.svg)](https://github.com/nakuldagade/FraudGuard/actions/workflows/security.yml)
 
 An event-driven system that accepts payments, decides in the background whether each is `APPROVED`, `REVIEW` or `BLOCKED`
 using fraud rules and an ML anomaly score, explains every decision in plain English, lets analysts review the risky ones, and
 feeds their verdicts back into retraining the model.
+
+> **Status:** all 13 planned phases are complete (API, Kafka pipeline with outbox, Redis features, rules, ML service, decision policy,
+> dashboard, feedback loop, reliability and observability, security, testing and performance, Docker and CI, documentation).
 
 > **Limitations and honesty.** This is a learning and portfolio project that runs on **synthetic data**. Every number in it
 > (scores, block rates, model improvements) describes the demo, not real-world fraud detection accuracy. It is **not
@@ -52,6 +54,7 @@ feeds their verdicts back into retraining the model.
 You need Docker with Compose, and for the demo script Node 22 (the seed script) and Python 3.
 
 ```bash
+git clone https://github.com/nakuldagade/FraudGuard.git && cd FraudGuard
 cp .env.example .env     # local demo values, all passwords and keys are for this machine only
 make demo                # build, start everything, send demo data, retrain and promote a model (about 3 minutes)
 ```
@@ -160,6 +163,7 @@ Alertmanager with Slack or email, scheduled retraining and drift monitoring, ref
 dashboard updates instead of 10-second polling, an accessibility pass, a second model trained on a public dataset (PaySim or the
 ULB credit-card set) shown as an offline benchmark.
 
-## Contributing and licence
+## Author, contributing and licence
 
-See [CHANGELOG.md](CHANGELOG.md). Released under the [MIT licence](LICENSE).
+Built by **Nakul Dagade** as a learning and portfolio project. See [CHANGELOG.md](CHANGELOG.md) for what changed, and
+[docs/release-checklist.md](docs/release-checklist.md) for publishing notes. Released under the [MIT licence](LICENSE).

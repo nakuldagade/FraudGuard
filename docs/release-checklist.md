@@ -12,7 +12,7 @@ The project is pushed to GitHub in one go. Work through this top to bottom.
 - [ ] `LICENSE` present (MIT), `CHANGELOG.md` has a `## [1.0.0]` section (the release workflow takes its notes from it).
 
 ## On GitHub
-- [ ] Replace `OWNER` in the README badges with the GitHub user or organisation.
+- [x] README badges point at `nakuldagade/FraudGuard`.
 - [ ] Repository description: *Real-time fraud detection demo: Kafka, Spring Boot, FastAPI, React. Synthetic data, not production-grade.*
 - [ ] Topics: `fraud-detection`, `kafka`, `spring-boot`, `fastapi`, `react`, `prometheus`, `grafana`, `docker`, `event-driven`, `portfolio-project`.
 - [ ] Settings → Actions → General: workflow permissions "Read repository contents" (the workflows request what they need).
