@@ -8,7 +8,7 @@ prometheus-client==0.21.*
 # must be loaded with the same scikit-learn/numpy versions that trained it.
 numpy==2.3.5
 scikit-learn==1.7.2
-joblib==1.5.2
+joblib==1.6.0
 
 # Tests
 pytest==9.2.0
