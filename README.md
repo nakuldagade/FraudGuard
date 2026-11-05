@@ -134,17 +134,392 @@ Measured on one laptop with synthetic traffic ([docs/performance.md](docs/perfor
 
 These are laptop numbers with the load generator on the same machine. They are not capacity figures for production hardware.
 
-## Project layout
+## Project structure
 
-```
-backend/       Spring Boot service (API, pipeline, rules, decision policy, security)
-ml-service/    FastAPI scoring service, training and retraining scripts
-frontend/      React dashboard, seed script, tests
-infra/         Prometheus, alert rules, Grafana dashboard as code
-scripts/       Local setup and the failure drills
-perf/          k6 load tests and the 100k-row seed
-contracts/     The agreed shape of POST /score (tested on both sides)
-docs/          Architecture, ADRs, policy, observability, testing, performance, demo script
+Every file tracked in git, as of the completed project. Folders marked *generated* appear after you run the project but are not committed.
+
+```text
+FraudGuard/
+├── .env.example                                                     # Template for local settings and demo credentials (copy to .env)
+├── .gitignore                                                       # Ignores .env, build output, model files, local PDFs
+├── .gitleaksignore                                                  # Three reviewed, expired test tokens the secret scanner skips
+├── CHANGELOG.md                                                     # What changed in each version
+├── docker-compose.yml                                               # PostgreSQL, Redis, Kafka, Kafka UI; profile 'app' adds backend, ML, frontend
+├── LICENSE                                                          # MIT licence
+├── Makefile                                                         # make up / down / seed / test / lint / demo / openapi
+├── README.md                                                        # This file
+├── .github/                                                         # GitHub automation
+│   ├── dependabot.yml                                               # Weekly dependency-update PRs (Maven, pip, npm, Actions, Docker)
+│   ├── pull_request_template.md                                     # Checklist shown on new pull requests
+│   └── workflows/
+│       ├── ci.yml                                                   # Build and test backend, ML service, frontend; config checks
+│       ├── release.yml                                              # On a v* tag: push images to GHCR, create a GitHub Release
+│       └── security.yml                                             # CodeQL, pip-audit, npm audit, Trivy image scans, gitleaks
+│
+├── backend/                                                         # Spring Boot service (package com.fraudguard, Java 21)
+│   ├── .dockerignore                                                # Files kept out of the Docker build
+│   ├── Dockerfile                                                   # Multi-stage, non-root image with a layered jar
+│   ├── pom.xml                                                      # Maven build: dependencies, JaCoCo coverage gate
+│   ├── README.md                                                    # How to run and test the backend
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/fraudguard/                                 # Application code
+│       │   │   ├── FraudGuardApplication.java                       # Application entry point
+│       │   │   ├── config/                                          # Configuration beans
+│       │   │   │   ├── CorsConfig.java                              # Allowed browser origins and headers
+│       │   │   │   ├── KafkaConfig.java                             # Topics, retry backoff, dead-letter queue, DLQ counter
+│       │   │   │   ├── OpenApiConfig.java                           # API description and the two security schemes
+│       │   │   │   └── RedisConfig.java                             # Redis client and template setup
+│       │   │   │
+│       │   │   ├── controller/                                      # REST endpoints
+│       │   │   │   ├── AdminController.java                         # Admin only: re-drive, dead-letter summary, system status
+│       │   │   │   ├── FeedbackController.java                      # Label export (admin) and label statistics
+│       │   │   │   ├── ModelInfoController.java                     # Models in use and the live-model registry
+│       │   │   │   └── TransactionController.java                   # Ingest, search, summary, trend, detail, review
+│       │   │   │
+│       │   │   ├── decision/                                        # Final decision policy (policy-v1)
+│       │   │   │   ├── Decision.java                                # Final status plus the reasons behind it
+│       │   │   │   ├── DecisionEngine.java                          # Combines rules, ML score and velocity features
+│       │   │   │   ├── DecisionInputs.java                          # Snapshot of everything the policy looked at
+│       │   │   │   ├── DecisionProperties.java                      # fraudguard.decision.* settings
+│       │   │   │   └── MlSignal.java                                # ML score as seen by the policy
+│       │   │   │
+│       │   │   ├── dto/                                             # Request, response and event objects
+│       │   │   │   ├── FeedbackStatsDTO.java                        # Label counts
+│       │   │   │   ├── LabeledTransactionDTO.java                   # One labelled row for training
+│       │   │   │   ├── MlScoreRequest.java                          # Body sent to the ML service
+│       │   │   │   ├── MlScoreResponse.java                         # Answer from the ML service
+│       │   │   │   ├── ModelUsageDTO.java                           # Transactions scored per model version
+│       │   │   │   ├── PageResponseDTO.java                         # Paged list envelope
+│       │   │   │   ├── ReviewResponseDTO.java                       # One review in the history
+│       │   │   │   ├── RuleHit.java                                 # One fired rule: code, score, reason
+│       │   │   │   ├── SystemStatusDTO.java                         # Operations tab status snapshot
+│       │   │   │   ├── TransactionDetailDTO.java                    # Transaction, inputs snapshot, review history
+│       │   │   │   ├── TransactionEvent.java                        # Kafka event payload
+│       │   │   │   ├── TransactionRequestDTO.java                   # Ingestion body (validated)
+│       │   │   │   ├── TransactionResponseDTO.java                  # A transaction as the API returns it
+│       │   │   │   ├── TransactionSearchCriteria.java               # The dashboard's filters
+│       │   │   │   ├── TransactionStatusUpdateDTO.java              # Review request body (reviewer field ignored)
+│       │   │   │   ├── TransactionSummaryDTO.java                   # Dashboard header counts
+│       │   │   │   ├── TrendPointDTO.java                           # One hour of the activity chart
+│       │   │   │   └── VelocityFeatures.java                        # Redis-derived behaviour features
+│       │   │   │
+│       │   │   ├── entity/                                          # JPA entities and enums
+│       │   │   │   ├── AnalystReview.java                           # One analyst action (append-only history)
+│       │   │   │   ├── AppUser.java                                 # A dashboard user (BCrypt password hash)
+│       │   │   │   ├── OutboxEvent.java                             # Transactional outbox row
+│       │   │   │   ├── ReviewAction.java                            # CONFIRM_FRAUD, MARK_LEGITIMATE, REQUEST_FURTHER_REVIEW
+│       │   │   │   ├── ReviewState.java                             # UNREVIEWED, CONFIRMED_FRAUD, MARKED_LEGITIMATE, NEEDS_MORE_REVIEW
+│       │   │   │   ├── Role.java                                    # ANALYST or ADMIN
+│       │   │   │   ├── RuleHitsConverter.java                       # Stores fired rules in one database column
+│       │   │   │   ├── Transaction.java                             # A payment and its decision
+│       │   │   │   ├── TransactionStatus.java                       # PENDING, APPROVED, REVIEW, BLOCKED
+│       │   │   │   └── TransactionType.java                         # Kind of payment
+│       │   │   │
+│       │   │   ├── exception/                                       # Error handling
+│       │   │   │   ├── GlobalExceptionHandler.java                  # Errors as JSON problem details
+│       │   │   │   ├── IdempotencyConflictException.java            # Same key, different body (409)
+│       │   │   │   └── ResourceNotFoundException.java               # Not found (404)
+│       │   │   │
+│       │   │   ├── repository/                                      # Database access (Spring Data JPA)
+│       │   │   │   ├── AnalystReviewRepository.java                 # Review history queries
+│       │   │   │   ├── OutboxEventRepository.java                   # Unsent outbox rows and counts
+│       │   │   │   ├── TransactionRepository.java                   # Counts, hourly trend, stuck-PENDING queries
+│       │   │   │   ├── TransactionSpecifications.java               # Builds the dashboard's dynamic filters
+│       │   │   │   └── UserRepository.java                          # Find a user by username
+│       │   │   │
+│       │   │   ├── rules/                                           # Fraud rules
+│       │   │   │   ├── FraudRule.java                               # Interface every rule implements
+│       │   │   │   ├── HighVelocityRule.java                        # Too many transactions in 5 minutes or an hour
+│       │   │   │   ├── NewDeviceHighAmountRule.java                 # New device combined with a high amount
+│       │   │   │   ├── RapidCountryChangeRule.java                  # Country changed within an hour
+│       │   │   │   ├── RiskAssessment.java                          # Rule score, verdict and fired rules
+│       │   │   │   ├── RuleEngine.java                              # Runs all rules and adds up the score
+│       │   │   │   ├── RuleProperties.java                          # fraudguard.rules.* thresholds
+│       │   │   │   └── UnusualAmountRule.java                       # Amount far above the account's usual amount
+│       │   │   │
+│       │   │   ├── security/                                        # Login, roles, API key, rate limit
+│       │   │   │   ├── ApiKeyAuthenticationFilter.java              # X-API-Key check for ingestion
+│       │   │   │   ├── ApiSecurityErrorHandler.java                 # 401 and 403 as JSON
+│       │   │   │   ├── AuthController.java                          # POST /api/auth/login and GET /api/auth/me
+│       │   │   │   ├── JwtService.java                              # Creates and checks login tokens
+│       │   │   │   ├── LoginRateLimiter.java                        # 5 login attempts per minute per IP
+│       │   │   │   ├── SecurityConfig.java                          # The three filter chains and the route rules
+│       │   │   │   ├── SecurityProperties.java                      # fraudguard.security.* settings
+│       │   │   │   └── UserSeeder.java                              # Creates the first users from environment variables
+│       │   │   │
+│       │   │   └── service/                                         # Pipeline and business logic
+│       │   │       ├── DlqService.java                              # Reads the dead-letter topic (read-only)
+│       │   │       ├── FeedbackService.java                         # Label export and statistics
+│       │   │       ├── MlServiceClient.java                         # Calls the ML service: timeout and circuit breaker
+│       │   │       ├── ModelInfoService.java                        # Models in use, registry from the ML service
+│       │   │       ├── OutboxMetrics.java                           # Outbox backlog gauge
+│       │   │       ├── OutboxRelay.java                             # Publishes outbox rows to Kafka in batches
+│       │   │       ├── RedriveService.java                          # Re-queues transactions stuck in PENDING
+│       │   │       ├── StuckPendingMetrics.java                     # Stuck-PENDING gauge
+│       │   │       ├── SystemStatusService.java                     # Dependency health for the Operations tab
+│       │   │       ├── TransactionCacheService.java                 # Velocity features in Redis (Lua script)
+│       │   │       ├── TransactionEventConsumer.java                # Kafka consumer: features, ML, rules, decision, metrics
+│       │   │       ├── TransactionService.java                      # Service interface
+│       │   │       └── TransactionServiceImpl.java                  # Create (with outbox), search, summary, trend, review
+│       │   │
+│       │   └── resources/                                           # Settings, migrations, Lua script
+│       │       ├── application-docker.yml                           # Settings inside Docker Compose
+│       │       ├── application.yml                                  # All settings (secrets come from environment variables)
+│       │       ├── db/migration/                                    # Flyway SQL migrations
+│       │       │   ├── V1__Create_transactions_table.sql            # transactions table
+│       │       │   ├── V2__Add_processed_event_id.sql               # Duplicate-event protection
+│       │       │   ├── V3__Create_outbox_events_table.sql           # Transactional outbox
+│       │       │   ├── V4__Add_rule_assessment.sql                  # Rule score and fired rules
+│       │       │   ├── V5__Add_anomaly_score_and_model_version.sql  # ML score and model version
+│       │       │   ├── V6__Add_decision_details.sql                 # Policy, reason codes, explanation, inputs
+│       │       │   ├── V7__Add_analyst_reviews.sql                  # Analyst review history and state
+│       │       │   ├── V8__users.sql                                # users table (login)
+│       │       │   └── V9__status_review_index.sql                  # Composite index for dashboard counts
+│       │       │
+│       │       └── redis/
+│       │           └── record_transaction.lua                       # Atomic update and read of recent behaviour
+│       │
+│       └── test/                                                    # Tests
+│           ├── java/com/fraudguard/                                 # Test code
+│           │   ├── TestAuth.java                                    # Test helper: API key and analyst/admin tokens
+│           │   ├── config/
+│           │   │   └── TestcontainersConfig.java                    # Starts PostgreSQL, Kafka and Redis for tests
+│           │   │
+│           │   ├── controller/
+│           │   │   ├── SystemStatusApiTest.java                     # Operations status; analyst gets 403
+│           │   │   ├── TransactionControllerTest.java               # Ingest, idempotent replay, validation
+│           │   │   ├── TransactionReviewApiTest.java                # List, filters, paging, reviews, CORS
+│           │   │   └── TransactionTrendApiTest.java                 # Hourly activity chart data
+│           │   │
+│           │   ├── decision/
+│           │   │   └── DecisionEngineTest.java                      # All 15 rule x ML combinations, thresholds
+│           │   │
+│           │   ├── rules/
+│           │   │   └── RuleEngineTest.java                          # Rule scoring and verdict bands
+│           │   │
+│           │   ├── security/
+│           │   │   ├── OpenApiTest.java                             # API description is public and complete
+│           │   │   ├── SecurityApiTest.java                         # Every route x role, token tampering, expiry, login limit
+│           │   │   └── SecurityUnitTest.java                        # Rate limiter and JWT secret rules
+│           │   │
+│           │   └── service/
+│           │       ├── FeedbackServiceTest.java                     # Label rules and statistics
+│           │       ├── FraudDecisionTest.java                       # End to end decisions with rules
+│           │       ├── MlContractTest.java                          # Java side of the /score contract
+│           │       ├── MlScoringIntegrationTest.java                # End to end with a fake ML service
+│           │       ├── MlServiceClientMetricsTest.java              # Call outcomes, circuit gauge, token header
+│           │       ├── MlServiceClientTest.java                     # Timeouts, errors, circuit breaker
+│           │       ├── OutboxRelayTest.java                         # Batch publishing and failure handling
+│           │       ├── RedisOutageIntegrationTest.java              # Redis frozen, dead-letter, re-drive recovery
+│           │       ├── ReliabilityIntegrationTest.java              # Re-drive and dead-letter summary
+│           │       ├── StuckPendingMetricsTest.java                 # Backlog gauges
+│           │       ├── TransactionCacheServiceTest.java             # Velocity features
+│           │       ├── TransactionEventConsumerMetricsTest.java     # Outcomes, counters, latency
+│           │       └── TransactionEventConsumerTest.java            # Pipeline, duplicates, poison messages
+│           │
+│           └── resources/
+│               └── application-test.yml                             # Test-only secrets and settings
+│
+├── contracts/                                                       # Shared contracts between services
+│   └── ml-score.schema.json                                         # JSON Schema of POST /score (tested in Java and Python)
+│
+├── docs/                                                            # Documentation
+│   ├── api-examples.http                                            # Ready-made API requests
+│   ├── architecture.md                                              # Diagrams, data model, topics, failure modes
+│   ├── decision-policy.md                                           # The exact decision rules
+│   ├── demo-script.md                                               # A 5-minute demo walkthrough
+│   ├── feedback-loop.md                                             # Labels, retraining, promotion, rollback
+│   ├── observability.md                                             # Metrics, alerts, runbooks, drill results
+│   ├── openapi.json                                                 # Generated API description
+│   ├── performance.md                                               # Load-test method, results, caveats
+│   ├── portfolio.md                                                 # Resume bullets, post draft, interview Q and A
+│   ├── release-checklist.md                                         # Steps before publishing
+│   ├── testing.md                                                   # How it is tested, coverage numbers
+│   ├── adr/                                                         # Architecture decision records (why it is built this way)
+│   │   ├── 0001-event-driven-pipeline-with-kafka.md                 # Why Kafka and an asynchronous pipeline
+│   │   ├── 0002-transactional-outbox.md                             # Why the outbox, and the relay batching lesson
+│   │   ├── 0003-retries-and-dlq.md                                  # Retries, dead-letter topic, the Redis timeout lesson
+│   │   ├── 0004-redis-velocity-features.md                          # Why Redis for recent behaviour
+│   │   ├── 0005-hybrid-rules-and-ml-policy.md                       # Why rules plus ML, and ML never blocks alone
+│   │   ├── 0006-optional-ml-with-circuit-breaker.md                 # Why scoring is optional
+│   │   ├── 0007-feedback-loop-promotion-gate-calibration.md         # Safe retraining and promotion
+│   │   ├── 0008-stateless-jwt.md                                    # Login design and its limits
+│   │   ├── 0009-prometheus-and-grafana.md                           # Why these monitoring tools
+│   │   └── README.md                                                # Index of the decision records
+│   │
+│   └── images/                                                      # Screenshots used in the README and docs
+│       ├── api-docs.png                                             # Swagger UI
+│       ├── dashboard-dark.png                                       # Dashboard, dark theme
+│       ├── dashboard.png                                            # Dashboard, light theme
+│       ├── drawer.png                                               # Transaction details drawer
+│       ├── grafana.png                                              # Grafana dashboard
+│       ├── login.png                                                # Sign-in page with demo accounts
+│       └── operations.png                                           # Admin-only Operations tab
+│
+├── frontend/                                                        # React + TypeScript + Vite dashboard
+│   ├── .dockerignore                                                # Files kept out of the Docker build
+│   ├── .gitignore                                                   # Frontend-specific ignores
+│   ├── Dockerfile                                                   # Build, then nginx (non-root)
+│   ├── eslint.config.js                                             # Lint rules
+│   ├── index.html                                                   # Page shell; applies the saved theme before first paint
+│   ├── nginx.conf                                                   # Serves the app, proxies /api to the backend
+│   ├── package-lock.json                                            # Exact dependency versions
+│   ├── package.json                                                 # Scripts and dependencies
+│   ├── playwright.config.ts                                         # Playwright setup
+│   ├── README.md                                                    # How to run and test the frontend
+│   ├── tsconfig.app.json                                            # TypeScript settings (app)
+│   ├── tsconfig.json                                                # TypeScript project references
+│   ├── tsconfig.node.json                                           # TypeScript settings (build tooling)
+│   ├── vite.config.ts                                               # Vite and Vitest settings
+│   ├── e2e/                                                         # Playwright browser tests (real stack)
+│   │   └── smoke.e2e.ts                                             # Analyst review flow; admin Operations tab
+│   │
+│   ├── public/                                                      # Static files
+│   │   ├── favicon.svg                                              # Browser tab icon
+│   │   └── icons.svg                                                # Static icon file
+│   │
+│   ├── scripts/                                                     # Command-line helpers
+│   │   ├── seed-demo.mjs                                            # Sends demo transactions (npm run seed)
+│   │   └── take-screenshots.mjs                                     # Takes the README screenshots
+│   │
+│   └── src/                                                         # Dashboard source
+│       ├── App.tsx                                                  # Layout, tabs, details drawer, toast
+│       ├── feedbackTypes.ts                                         # Shapes of the feedback endpoints
+│       ├── index.css                                                # Styles: light and dark themes, animations
+│       ├── main.tsx                                                 # App entry: providers and login gate
+│       ├── types.ts                                                 # Shapes of the backend's JSON
+│       ├── auth/                                                    # Login state
+│       │   ├── authContext.ts                                       # Login context definition
+│       │   ├── AuthGate.tsx                                         # Shows the login page until signed in
+│       │   ├── AuthProvider.tsx                                     # Login, logout, 401 handling
+│       │   ├── demo.ts                                              # One-click demo accounts (demo only)
+│       │   ├── session.ts                                           # Token kept in sessionStorage
+│       │   └── useAuth.ts                                           # Hook to read the login state
+│       │
+│       ├── components/                                              # UI components
+│       │   ├── DecisionInputs.tsx                                   # Shows the stored inputs snapshot
+│       │   ├── DetailPanel.tsx                                      # Transaction details (inside the drawer)
+│       │   ├── Drawer.tsx                                           # Slide-in panel (Esc closes)
+│       │   ├── FeedbackPanel.tsx                                    # Model feedback card
+│       │   ├── Filters.tsx                                          # Search and filter bar
+│       │   ├── Icons.tsx                                            # Inline SVG icons
+│       │   ├── Insights.tsx                                         # The three chart cards
+│       │   ├── LoginPage.tsx                                        # Sign-in page with demo accounts
+│       │   ├── OperationsView.tsx                                   # Admin tab: status, re-drive, dead letters, export
+│       │   ├── Pagination.tsx                                       # Page controls
+│       │   ├── ReviewActions.tsx                                    # Review buttons and note box
+│       │   ├── StatusBadge.tsx                                      # Decision and review pills
+│       │   ├── SummaryHeader.tsx                                    # Top bar, tabs, KPI cards
+│       │   ├── ThemeToggle.tsx                                      # Sun/moon button
+│       │   ├── Toast.tsx                                            # Short confirmation message
+│       │   ├── TransactionTable.tsx                                 # The transaction list
+│       │   └── charts/                                              # Hand-built SVG charts
+│       │       ├── BarList.tsx                                      # Horizontal bars
+│       │       ├── DonutChart.tsx                                   # Ring chart
+│       │       └── TrendChart.tsx                                   # Activity columns per hour
+│       │
+│       ├── hooks/                                                   # Data loading
+│       │   ├── useCountUp.ts                                        # Animated counting numbers
+│       │   ├── useFeedback.ts                                       # Loads the feedback endpoints
+│       │   ├── useSummary.ts                                        # Loads the header counts
+│       │   ├── useTransactionDetail.ts                              # Loads one transaction
+│       │   ├── useTransactions.ts                                   # Loads the transaction list
+│       │   └── useTrend.ts                                          # Loads the activity chart data
+│       │
+│       ├── lib/                                                     # API calls and formatting
+│       │   ├── api.ts                                               # All backend calls (adds the bearer token)
+│       │   ├── feedbackApi.ts                                       # Feedback endpoint calls
+│       │   └── format.ts                                            # Money, date and risk helpers
+│       │
+│       ├── test/                                                    # Vitest tests with a fake API (MSW)
+│       │   ├── auth.test.tsx                                        # Login, session, 401, logout
+│       │   ├── dashboard.test.tsx                                   # List, filters, paging, details, review, model feedback
+│       │   ├── helpers.tsx                                          # Renders the app signed in
+│       │   ├── operations.test.tsx                                  # Operations tab and who sees it
+│       │   ├── server.ts                                            # Fake API (MSW)
+│       │   ├── setup.ts                                             # Test setup
+│       │   └── ui.test.tsx                                          # Demo accounts, theme, drawer, charts
+│       │
+│       └── theme/
+│           └── theme.ts                                             # Light/dark switch
+│
+├── infra/                                                           # Infrastructure as code
+│   ├── .gitkeep                                                     # Keeps the folder in git
+│   └── observability/                                               # Prometheus and Grafana
+│       ├── alerts.yml                                               # 12 alert rules
+│       ├── alerts_test.yml                                          # Unit tests for the alert rules (promtool)
+│       ├── docker-compose.yml                                       # Starts Prometheus and Grafana
+│       ├── prometheus.yml                                           # Scrape config: backend and ML service
+│       └── grafana/                                                 # Grafana provisioning
+│           ├── dashboards/
+│           │   └── fraudguard-overview.json                         # The dashboard, stored as code
+│           │
+│           └── provisioning/
+│               ├── dashboards/
+│               │   └── dashboards.yml                               # Loads dashboards from files
+│               │
+│               └── datasources/
+│                   └── prometheus.yml                               # Prometheus data source
+│
+├── ml-service/                                                      # FastAPI scoring service (Python)
+│   ├── .dockerignore                                                # Files kept out of the Docker build
+│   ├── Dockerfile                                                   # Trains isoforest-v1 at build time; non-root
+│   ├── pytest.ini                                                   # Test settings, 85% coverage gate
+│   ├── requirements.txt                                             # Pinned dependencies
+│   ├── app/                                                         # The service
+│   │   ├── __init__.py                                              # Makes app a package
+│   │   ├── features.py                                              # Feature layout (shared with training)
+│   │   ├── main.py                                                  # Routes: /score, /health, /metrics, /admin/*
+│   │   ├── metrics.py                                               # Prometheus metrics
+│   │   ├── model.py                                                 # Loads a model, scores, calibrates
+│   │   ├── registry.py                                              # Which model version is live
+│   │   ├── schemas.py                                               # Request and response shapes
+│   │   └── security.py                                              # Service and admin token checks
+│   │
+│   ├── data/                                                        # Exported labels and raw data (generated, git-ignored)
+│   ├── models/                                                      # Trained models and registry.json (generated, git-ignored)
+│   ├── tests/                                                       # pytest tests
+│   │   ├── conftest.py                                              # Test tokens and a pinned model
+│   │   ├── test_api.py                                              # Score and health API
+│   │   ├── test_contract.py                                         # Python side of the /score contract
+│   │   ├── test_features.py                                         # Feature extraction
+│   │   ├── test_feedback_loop.py                                    # Retrain, gate, promote, reload
+│   │   ├── test_security_and_metrics.py                             # Tokens, open routes, metrics, failed reload
+│   │   └── test_training.py                                         # Synthetic data and the baseline model
+│   │
+│   └── training/                                                    # Training and retraining
+│       ├── build_dataset.py                                         # Turns exported labels into training rows
+│       ├── retrain.py                                               # Retrain, promotion gate, promote
+│       └── train.py                                                 # Synthetic data and the baseline model
+│
+├── perf/                                                            # Load tests (k6) and the 100k-row seed
+│   ├── cleanup.sql                                                  # Removes the synthetic and load-test rows
+│   ├── ingest.js                                                    # Ingestion load test (also the end-to-end test)
+│   ├── read.js                                                      # List and filter queries on a big table
+│   ├── run.sh                                                       # Runs a k6 test from Docker and reads Prometheus
+│   ├── seed-100k.sql                                                # Adds 100,000 synthetic rows for read tests
+│   ├── soak.js                                                      # 30-minute steady load
+│   ├── summarize.py                                                 # Prints the key numbers of a k6 summary
+│   └── results/                                                     # Saved k6 summaries
+│       ├── e2e-1793785300.json                                      # End-to-end run before tuning
+│       ├── e2e-1793785932.json                                      # End-to-end run after tuning
+│       └── soak-1793786302.json                                     # 30-minute soak run
+│
+└── scripts/                                                         # Local setup and failure drills
+    ├── release-notes.sh                                             # Takes a version's notes from CHANGELOG.md
+    ├── setup-local-env.sh                                           # Creates .env and the Prometheus password file
+    └── drills/                                                      # One script per failure drill (waits for Enter)
+        ├── 01-ml-service-down.sh                                    # Drill 1: ML service down
+        ├── 02-ml-service-hangs.sh                                   # Drill 2: ML service frozen
+        ├── 03-redis-down.sh                                         # Drill 3: Redis down, then re-drive
+        ├── 04-kafka-down.sh                                         # Drill 4: Kafka down, outbox drains
+        ├── 05-postgres-down.sh                                      # Drill 5: PostgreSQL down
+        ├── 06-poison-message.sh                                     # Drill 6: malformed message to the DLQ
+        ├── 07-duplicate-event.sh                                    # Drill 7: duplicate event skipped
+        ├── 08-backend-restart-under-load.sh                         # Drill 8: restart while seeding
+        ├── 09-corrupt-registry.sh                                   # Drill 9: corrupt model registry
+        └── _lib.sh                                                  # Shared helpers for the drills
 ```
 
 ## Limitations
