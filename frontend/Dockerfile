@@ -22,6 +22,11 @@ RUN npm run build
 
 # ---- run stage: nginx (unprivileged image: non-root, listens on 8080) ----
 FROM nginxinc/nginx-unprivileged:alpine
+# Upgrade OS packages (curl, expat, brotli ...) to their fixed versions: the base image can lag behind Alpine's security fixes,
+# and the image scan fails on HIGH/CRITICAL findings that have a fix. The unprivileged image runs as user 101, so switch to root only for this.
+USER root
+RUN apk upgrade --no-cache
+USER 101
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080

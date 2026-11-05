@@ -12,7 +12,8 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q -DskipTests package \
 
 # ---- run stage: JRE only, non-root ----
 FROM eclipse-temurin:21-jre
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
+# apt-get upgrade: picks up security fixes for OS packages that are newer than the base image (the image scan flags them)
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --no-create-home fraudguard
 WORKDIR /app
 # Layers ordered from least to most frequently changing, so a code change rebuilds only the last one
