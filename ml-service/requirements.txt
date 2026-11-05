@@ -14,5 +14,5 @@ joblib==1.5.2
 pytest==9.2.0
 httpx==0.28.1
 # Coverage (Phase 11): the serving code must stay at 85% or more. Training scripts are reported by CI but not gated.
-pytest-cov==7.0.0
+pytest-cov==7.1.0
 jsonschema==4.26.*
