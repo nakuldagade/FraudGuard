@@ -1,7 +1,7 @@
 # Serving
 fastapi==0.162.*
 starlette==1.10.*   # pinned directly: older Starlette versions have known security advisories (pip-audit)
-uvicorn[standard]==0.32.*
+uvicorn[standard]==0.54.*
 prometheus-client==0.21.*
 
 # Model + training. These versions are PINNED EXACTLY on purpose: a saved model (joblib/pickle)
