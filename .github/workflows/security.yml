@@ -72,6 +72,20 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+          format: table
+          output: trivy-${{ matrix.image }}.txt
+      # The scan step above writes its report to a file, so print it here, and also publish the findings as an
+      # annotation (visible on the run page and through the API, unlike log text which needs a login).
+      - name: Show Trivy findings
+        if: always()
+        run: |
+          f="trivy-${{ matrix.image }}.txt"
+          if [ -f "$f" ]; then
+            cat "$f"
+            rows=$(grep -E "CVE-|GHSA-" "$f" | sed -E 's/[│├┤┬┴┼─┌┐└┘ ]+/ /g' | head -40 | tr '\n' ';')
+            [ -n "$rows" ] && echo "::error title=Trivy findings (${{ matrix.image }})::${rows}"
+          fi
+          exit 0
 
   secrets:
     runs-on: ubuntu-latest
