@@ -60,3 +60,6 @@ test-results/
 playwright-report/
 .vscode/
 .idea/
+
+# Local explainer PDF (not published)
+docs/FraudGuard-explained.pdf
