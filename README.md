@@ -111,13 +111,6 @@ Details: [docs/feedback-loop.md](docs/feedback-loop.md).
 
 The tab is hidden for analysts, and the endpoints behind it answer `403` to them as well (tested), so hiding is only a convenience.
 
-## Observability
-
-![Grafana dashboard](docs/images/grafana.png)
-
-Metrics, the dashboard, the alert table with a runbook per alert, and the recorded results of the nine failure drills:
-[docs/observability.md](docs/observability.md).
-
 ## Tests and performance
 
 145 backend tests (94.6% line coverage, gated), 45 ML tests (95% of the serving code, gated), 47 frontend tests plus an end-to-end smoke
