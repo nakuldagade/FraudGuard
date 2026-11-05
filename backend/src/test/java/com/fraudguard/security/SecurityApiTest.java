@@ -93,6 +93,7 @@ class SecurityApiTest {
                 new Route("GET /api/feedback/labels", () -> get("/api/feedback/labels")),
                 new Route("POST /api/admin/transactions/redrive-pending", () -> post("/api/admin/transactions/redrive-pending")),
                 new Route("GET /api/admin/dlq/summary", () -> get("/api/admin/dlq/summary")),
+                new Route("GET /api/admin/system-status", () -> get("/api/admin/system-status")),
                 new Route("GET /api/admin/anything-else", () -> get("/api/admin/anything-else")),
         };
     }

@@ -5,13 +5,17 @@ import type { DashboardSummary } from '../types';
 import { BanIcon, CheckIcon, ClockIcon, EyeIcon, InboxIcon, ListIcon, LogOutIcon, ShieldIcon } from './Icons';
 import { ThemeToggle } from './ThemeToggle';
 
+export type View = 'dashboard' | 'operations';
+
 interface Props {
   summary?: DashboardSummary;
   error?: string;
+  view: View;
+  onView: (view: View) => void;
 }
 
 // Top bar: brand, theme switch, who is logged in
-function TopBar() {
+function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
   const { session, logout } = useAuth();
   return (
     <header className="topbar">
@@ -22,6 +26,15 @@ function TopBar() {
           <span>Analyst dashboard</span>
         </div>
       </div>
+      {/* The Operations tab exists only for admins; an analyst sees no tabs at all */}
+      {session?.role === 'ADMIN' && (
+        <nav className="tabs" aria-label="Sections">
+          <button type="button" className={view === 'dashboard' ? 'active' : ''} aria-current={view === 'dashboard' ? 'page' : undefined}
+                  onClick={() => onView('dashboard')}>Dashboard</button>
+          <button type="button" className={view === 'operations' ? 'active' : ''} aria-current={view === 'operations' ? 'page' : undefined}
+                  onClick={() => onView('operations')}>Operations</button>
+        </nav>
+      )}
       <div className="topbar-right">
         <ThemeToggle />
         {session && (
@@ -58,12 +71,13 @@ function Kpi({ label, value, total, tone, icon, index }: {
   );
 }
 
-export function SummaryHeader({ summary, error }: Props) {
+export function SummaryHeader({ summary, error, view, onView }: Props) {
   const by = (s: keyof NonNullable<typeof summary>['byStatus']) => (summary ? (summary.byStatus[s] ?? 0) : undefined);
   const total = summary?.total;
   return (
     <>
-      <TopBar />
+      <TopBar view={view} onView={onView} />
+      {view === 'dashboard' && (
       <section className="kpis" aria-label="Summary">
         <Kpi index={0} label="Total" value={total} tone="neutral" icon={<ListIcon />} />
         <Kpi index={1} label="Approved" value={by('APPROVED')} total={total} tone="good" icon={<CheckIcon />} />
@@ -72,6 +86,7 @@ export function SummaryHeader({ summary, error }: Props) {
         <Kpi index={4} label="Pending" value={by('PENDING')} total={total} tone="neutral" icon={<ClockIcon />} />
         <Kpi index={5} label="Awaiting analyst" value={summary?.awaitingReview} tone="accent" icon={<InboxIcon />} />
       </section>
+      )}
       {error && <div className="banner error page-banner">Could not load summary: {error}</div>}
     </>
   );

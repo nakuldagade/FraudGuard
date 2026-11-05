@@ -7,6 +7,9 @@ import type {
   TransactionDetail,
   TransactionFilters,
   TrendPoint,
+  SystemStatus,
+  RedriveResult,
+  DlqSummary,
 } from '../types';
 import { loadSession, notifyUnauthorized } from '../auth/session';
 
@@ -87,3 +90,31 @@ export const submitReview = (
     method: 'POST',
     body: JSON.stringify(body),
   });
+
+
+// ---------- Admin only (the backend answers 403 to an analyst) ----------
+
+// GET /api/admin/system-status -> dependencies, ML circuit, backlogs
+export const fetchSystemStatus = () => request<SystemStatus>('/api/admin/system-status');
+
+// POST /api/admin/transactions/redrive-pending -> how many stuck transactions were re-queued
+export const redrivePending = (olderThanSeconds: number) =>
+  request<RedriveResult>(`/api/admin/transactions/redrive-pending?olderThanSeconds=${olderThanSeconds}&limit=500`, {
+    method: 'POST',
+  });
+
+// GET /api/admin/dlq/summary -> dead-letter topic size and recent failure causes
+export const fetchDlqSummary = () => request<DlqSummary>('/api/admin/dlq/summary');
+
+// GET /api/feedback/labels -> every analyst-labelled transaction; saved as a JSON file in the browser
+export async function downloadLabels(): Promise<number> {
+  const rows = await request<unknown[]>('/api/feedback/labels');
+  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `fraudguard-labels-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  return rows.length;
+}

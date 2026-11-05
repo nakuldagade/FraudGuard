@@ -9,16 +9,16 @@ test('analyst can log in, filter, open a transaction and submit a review', async
   test.skip(!USER || !PASS, 'set FRAUDGUARD_ANALYST_USERNAME / _PASSWORD (load .env)');
 
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
 
   // wrong password first: stays on the login page
   await page.getByLabel('Username').fill(USER!);
   await page.getByLabel('Password').fill('definitely-wrong');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByText('Invalid username or password')).toBeVisible();
 
   await page.getByLabel('Password').fill(PASS!);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.locator('.user-chip').getByText(USER!, { exact: true })).toBeVisible();
 
   // filter to transactions waiting for an analyst
@@ -40,4 +40,31 @@ test('analyst can log in, filter, open a transaction and submit a review', async
   await page.getByRole('button', { name: 'Request further review' }).click();
   await expect(page.locator('.review-list').getByText('e2e smoke test')).toBeVisible();
   await expect(page.locator('.review-list').getByText(`by ${USER}`).first()).toBeVisible();
+});
+
+const ADMIN = process.env.FRAUDGUARD_ADMIN_USERNAME;
+const ADMIN_PASS = process.env.FRAUDGUARD_ADMIN_PASSWORD;
+
+// The admin role sees an Operations tab with live system status; an analyst does not (and the API says 403 either way).
+test('admin gets the Operations tab, analyst does not', async ({ page, browser }) => {
+  test.skip(!ADMIN || !ADMIN_PASS || !USER || !PASS, 'set the admin and analyst credentials (load .env)');
+
+  await page.goto('/');
+  await page.getByLabel('Username').fill(ADMIN!);
+  await page.getByLabel('Password').fill(ADMIN_PASS!);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.getByRole('button', { name: 'Operations' }).click();
+  const ops = page.getByRole('region', { name: 'Operations' });
+  await expect(ops.getByText('Database')).toBeVisible();
+  await expect(ops.getByText('UP').first()).toBeVisible();
+  await expect(ops.getByRole('button', { name: 'Re-drive stuck transactions' })).toBeVisible();
+
+  // a second, separate browser session as an analyst
+  const analystPage = await (await browser.newContext()).newPage();
+  await analystPage.goto('/');
+  await analystPage.getByLabel('Username').fill(USER!);
+  await analystPage.getByLabel('Password').fill(PASS!);
+  await analystPage.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(analystPage.locator('.user-chip').getByText(USER!, { exact: true })).toBeVisible();
+  await expect(analystPage.getByRole('button', { name: 'Operations' })).toHaveCount(0);
 });

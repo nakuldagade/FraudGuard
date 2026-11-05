@@ -57,6 +57,12 @@ export const handlers = [
     const n = Number(String(params.id).charAt(7));
     return HttpResponse.json(detail(tx(n)));
   }),
+  // Admin-only endpoints (the Operations tab)
+  http.get(`${API}/api/admin/system-status`, () =>
+    HttpResponse.json({ database: 'UP', redis: 'UP', mlCircuit: 'CLOSED', outboxPending: 0, stuckPending: 0, stuckAfterSeconds: 120, checkedAt: '2026-11-05T10:00:00Z' })),
+  http.get(`${API}/api/admin/dlq/summary`, () => HttpResponse.json({ totalMessages: 0, recentByException: {}, recent: [] })),
+  http.post(`${API}/api/admin/transactions/redrive-pending`, () => HttpResponse.json({ requeued: 3, skipped: 1 })),
+  http.get(`${API}/api/feedback/labels`, () => HttpResponse.json([{ transactionId: 'a' }, { transactionId: 'b' }])),
   http.get(`${API}/api/feedback/stats`, () =>
     HttpResponse.json({ confirmedFraud: 3, markedLegitimate: 5, furtherReviewRequested: 1, unreviewed: 9, usableLabels: 8 })),
   http.get(`${API}/api/feedback/models`, () =>

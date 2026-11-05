@@ -174,7 +174,7 @@ Each row was tried for real; see the results in [observability.md](observability
 
 Three filter chains: `/actuator/**` (HTTP Basic, METRICS role; health is public), `/api/**` (stateless JWT; ingestion uses a
 service API key), everything else closed (apart from the API description and Swagger UI). Roles: `ANALYST` (review) and
-`ADMIN` (also training-data export and operator tools). The ML service's `/score` and `/admin/*` need shared tokens. See
+`ADMIN` (also training-data export and operator tools, shown in the dashboard's Operations tab). The ML service's `/score` and `/admin/*` need shared tokens. See
 [ADR 0008](adr/0008-stateless-jwt.md) and the limitations in [observability.md](observability.md#limitations).
 
 ## ML model artifacts

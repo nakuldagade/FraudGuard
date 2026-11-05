@@ -10,7 +10,7 @@
 | Backend | `cd backend && mvn verify` (Java 21, Docker running) | Unit tests, Spring + Testcontainers integration tests (Postgres, Kafka, Redis), security matrix, JaCoCo coverage gate |
 | ML service | `cd ml-service && source .venv/bin/activate && pytest` | API, features, training, feedback loop, token checks, metrics, contract. Fails below 85% coverage of `app/` |
 | Frontend (unit and component) | `cd frontend && npm test` (`npm run test:coverage` for coverage) | Vitest + Testing Library + MSW (a fake API, no backend needed) |
-| Frontend (end to end) | `cd frontend && npm run test:e2e` | Playwright against the **real running stack**; needs seeded data and `.env` loaded |
+| Frontend (end to end) | `cd frontend && E2E_BASE_URL=http://localhost:8081 npm run test:e2e` | Playwright against the **real running stack** (Docker: `make up`, then `make seed`); needs `.env` loaded. Without `E2E_BASE_URL` it starts the Vite dev server on :5173, which only works with a backend running on your machine (the Docker backend allows no cross-origin callers) |
 | Alert rules | `promtool` via Docker, see [observability.md](observability.md#checking-the-alert-rules) | Rule syntax and three alert unit tests |
 | Performance | `./perf/run.sh ingest\|e2e\|read\|soak` | k6 load tests, see [performance.md](performance.md) |
 
@@ -55,8 +55,8 @@ Component tests (`src/test/*.test.tsx`) render the real app behind the real logi
 login success, wrong password, rate limit, bearer token on requests, 401 sending the user back to login, logout, one-click demo accounts, the light/dark theme, the details drawer (opens on click, closes with the button and Esc), the KPI cards and charts, table
 rendering and errors, the status filter and account search reaching the backend, paging, opening the detail, submitting a
 review **without** a reviewer name, and the Model feedback panel (labels, ML service down, registry mismatch, promotions).
-The Playwright smoke test (`e2e/smoke.e2e.ts`) does one real pass: wrong password, login, filter, open a row, submit a review.
-It logs in twice, and the login endpoint allows 5 attempts a minute per IP, so wait a minute between runs.
+The Playwright tests (`e2e/smoke.e2e.ts`) do two real passes: wrong password, login, filter, open a row, submit a review; and an admin sees the Operations tab with live status while an analyst does not.
+They log in four times, and the login endpoint allows 5 attempts a minute per IP, so wait a minute between runs.
 
 ## Known gaps
 

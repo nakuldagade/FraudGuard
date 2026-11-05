@@ -50,6 +50,13 @@ Dashboard *FraudGuard Overview*: decisions per minute, pipeline latency p50/p95/
 4. `docker compose --profile app start ml-service`. About 30 s later the circuit closes by itself.
 "Every other failure was tried too: `docs/observability.md#failure-drills`."
 
+## 7. Admin-only: the Operations tab (60 s)
+Sign out, then click **Sign in as Admin** (an analyst never sees this tab; the API answers 403 to them too).
+1. Open **Operations**: five status tiles (database, Redis, ML circuit, outbox backlog, stuck PENDING) and the dead-letter viewer.
+2. *Live version:* in a terminal `docker compose stop redis`, then send a few transactions (`cd frontend && npm run seed`). About 30 s later the **Redis** tile turns red, the **dead-letter** list fills with `RedisConnectionFailureException`, and **Stuck PENDING** counts up once they are over 2 minutes old.
+3. `docker compose start redis`, then click **Re-drive stuck transactions** (set *Older than* to `0` to skip the 2-minute wait). The result reads "Re-queued N, skipped M" and the stuck tile goes back to 0.
+4. **Download labelled data** saves the training set as JSON.
+
 ## Closing line
 "Event-driven pipeline with a transactional outbox, a hybrid rules and ML policy with explanations, a feedback loop with a promotion gate, and the monitoring, drills and tests to back it up, all on synthetic data."
 

@@ -34,6 +34,16 @@ await page.waitForTimeout(900);
 await page.screenshot({ path: `${OUT}dashboard-dark.png`, fullPage: true });
 await page.getByRole('button', { name: 'Switch to light theme' }).click();
 
+// 1b. The admin-only Operations tab (a fresh session signed in as Admin with one click)
+const adminCtx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
+const admin = await adminCtx.newPage();
+await admin.goto(DASH);
+await admin.getByRole('button', { name: 'Sign in as Admin' }).click();
+await admin.getByRole('button', { name: 'Operations' }).click();
+await admin.getByText('Stuck PENDING').waitFor();
+await admin.waitForTimeout(2000);
+await admin.screenshot({ path: `${OUT}operations.png`, fullPage: true });
+
 // 2. Grafana (anonymous login is off, so sign in)
 const g = await ctx.newPage();
 await g.goto(`${GRAFANA}/login`);

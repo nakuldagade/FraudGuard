@@ -131,6 +131,14 @@ public class MlServiceClient {
         }
     }
 
+    /** CLOSED = ML is in use, OPEN = skipped for a while after repeated failures, DISABLED = switched off by config. */
+    public String circuitState() {
+        if (!enabled) {
+            return "DISABLED";
+        }
+        return clock.getAsLong() < circuitOpenUntil ? "OPEN" : "CLOSED";
+    }
+
     private void count(String outcome) {
         metrics.counter("fraudguard.ml.calls", "outcome", outcome).increment();
     }

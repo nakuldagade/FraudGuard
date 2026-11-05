@@ -5,9 +5,11 @@ import { FeedbackPanel } from './components/FeedbackPanel';
 import { Filters } from './components/Filters';
 import { Insights } from './components/Insights';
 import { Pagination } from './components/Pagination';
-import { SummaryHeader } from './components/SummaryHeader';
+import { OperationsView } from './components/OperationsView';
+import { SummaryHeader, type View } from './components/SummaryHeader';
 import { Toast } from './components/Toast';
 import { TransactionTable } from './components/TransactionTable';
+import { useAuth } from './auth/useAuth';
 import { useSummary } from './hooks/useSummary';
 import { useTransactions } from './hooks/useTransactions';
 import type { TransactionFilters } from './types';
@@ -29,6 +31,10 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const { session } = useAuth();
+  const [chosenView, setView] = useState<View>('dashboard');
+  // Only admins have the Operations tab: for anyone else the view is always the dashboard
+  const view: View = session?.role === 'ADMIN' ? chosenView : 'dashboard';
 
   // Bumping this number makes the hooks re-fetch. Used by the timer below and after an analyst submits a review.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -63,10 +69,14 @@ export default function App() {
     );
   }, []);
 
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    timers.current.push(window.setTimeout(() => setToast(null), 2600));
+  }, []);
+
   const onReviewed = () => {
     setRefreshKey((k) => k + 1);
-    setToast('Review recorded');
-    timers.current.push(window.setTimeout(() => setToast(null), 2600));
+    showToast('Review recorded');
   };
 
   const summary = useSummary(refreshKey);
@@ -74,7 +84,10 @@ export default function App() {
 
   return (
     <div className="app">
-      <SummaryHeader summary={summary.data} error={summary.error} />
+      <SummaryHeader summary={summary.data} error={summary.error} view={view} onView={setView} />
+      {view === 'operations' ? (
+        <div className="page"><OperationsView refreshKey={refreshKey} onToast={showToast} /></div>
+      ) : (
       <div className="page">
         <Insights summary={summary.data} refreshKey={refreshKey} />
         <FeedbackPanel refreshKey={refreshKey} />
@@ -101,6 +114,7 @@ export default function App() {
           )}
         </section>
       </div>
+      )}
 
       {selectedId && (
         <Drawer title="Transaction details" closing={closing} onClose={closeDrawer}>

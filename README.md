@@ -19,6 +19,7 @@ feeds their verdicts back into retraining the model.
 
 ![Sign-in page with one-click demo accounts](docs/images/login.png)
 ![Dark theme](docs/images/dashboard-dark.png)
+![Admin-only Operations tab](docs/images/operations.png)
 ![Transaction details drawer](docs/images/drawer.png)
 
 </details>
@@ -29,7 +30,7 @@ feeds their verdicts back into retraining the model.
 - **Hybrid decision policy**: rules plus an ML score, versioned, never blocking on ML alone, every decision with reason codes and a stored snapshot of its inputs.
 - **Optional ML** behind a timeout and circuit breaker: if the ML service dies, decisions continue with rules only.
 - **Feedback loop**: analyst labels, retraining, a promotion gate (a new model is only used if it beats the old one), hot reload, score calibration.
-- **Reliability tools**: retries, a dead-letter topic, a re-drive endpoint for stuck transactions, graceful shutdown.
+- **Reliability tools**: retries, a dead-letter topic, a re-drive endpoint for stuck transactions, graceful shutdown, and an admin-only **Operations** tab (live dependency status, dead-letter viewer, one-click re-drive, training-data export).
 - **Observability**: Prometheus metrics, a Grafana dashboard as code, 12 alert rules with runbooks, and nine failure drills that were actually run.
 - **Security**: login with roles, JWT, API key for ingestion, token-protected ML service, protected metrics.
 - **Tests and measurements**: coverage gates, a Redis-outage recovery test, Java/Python contract tests, frontend and end-to-end tests, k6 load tests with before/after numbers.
@@ -98,6 +99,15 @@ are enough labels and it beats the live model by a margin on held-out data; `POS
 restart. In the demo the labels are synthetic, so the improvement describes the data generator, not real fraud.
 Details: [docs/feedback-loop.md](docs/feedback-loop.md).
 
+## Roles
+
+| | Analyst | Admin |
+|---|---|---|
+| Dashboard, charts, details, reviews, model feedback | Yes | Yes |
+| **Operations** tab: system status, dead-letter viewer, re-drive, training-data export | No | Yes |
+
+The tab is hidden for analysts, and the endpoints behind it answer `403` to them as well (tested), so hiding is only a convenience.
+
 ## Observability
 
 ![Grafana dashboard](docs/images/grafana.png)
@@ -107,7 +117,7 @@ Metrics, the dashboard, the alert table with a runbook per alert, and the record
 
 ## Tests and performance
 
-142 backend tests (94.6% line coverage, gated), 45 ML tests (95% of the serving code, gated), 35 frontend tests plus an end-to-end smoke
+145 backend tests (94.6% line coverage, gated), 45 ML tests (95% of the serving code, gated), 47 frontend tests plus an end-to-end smoke
 test. How to run them: [docs/testing.md](docs/testing.md).
 
 Measured on one laptop with synthetic traffic ([docs/performance.md](docs/performance.md) has the method and caveats):

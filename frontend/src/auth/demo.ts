@@ -19,7 +19,7 @@ export function getDemoAccounts(): DemoAccount[] {
       username: env.VITE_DEMO_ANALYST_USERNAME ?? '', password: env.VITE_DEMO_ANALYST_PASSWORD ?? '',
     },
     {
-      role: 'ADMIN', label: 'Admin', blurb: 'Everything an analyst can do, plus the admin API',
+      role: 'ADMIN', label: 'Admin', blurb: 'Everything an analyst can do, plus the Operations tab',
       username: env.VITE_DEMO_ADMIN_USERNAME ?? '', password: env.VITE_DEMO_ADMIN_PASSWORD ?? '',
     },
   ];

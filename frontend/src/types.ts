@@ -92,3 +92,34 @@ export interface TrendPoint {
   blocked: number;
   pending: number;
 }
+
+// GET /api/admin/system-status (ADMIN only). A count is null when it could not be read.
+export interface SystemStatus {
+  database: 'UP' | 'DOWN';
+  redis: 'UP' | 'DOWN';
+  mlCircuit: 'CLOSED' | 'OPEN' | 'DISABLED';
+  outboxPending: number | null;
+  stuckPending: number | null;
+  stuckAfterSeconds: number;
+  checkedAt: string;
+}
+
+// POST /api/admin/transactions/redrive-pending
+export interface RedriveResult {
+  requeued: number;
+  skipped: number;
+}
+
+// GET /api/admin/dlq/summary
+export interface DlqRecord {
+  partition: number;
+  offset: number;
+  timestamp: string;
+  key: string | null;
+  exception: string;
+}
+export interface DlqSummary {
+  totalMessages: number;
+  recentByException: Record<string, number>;
+  recent: DlqRecord[];
+}

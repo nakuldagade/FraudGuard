@@ -291,6 +291,36 @@
         },
         "type": "object"
       },
+      "SystemStatusDTO": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "database": {
+            "type": "string"
+          },
+          "mlCircuit": {
+            "type": "string"
+          },
+          "outboxPending": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "redis": {
+            "type": "string"
+          },
+          "stuckAfterSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stuckPending": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "TransactionDetailDTO": {
         "properties": {
           "decisionInputs": {
@@ -573,6 +603,32 @@
           }
         ],
         "summary": "Dead-letter topic size and recent failure causes",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/system-status": {
+      "get": {
+        "operationId": "systemStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusDTO"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "System status: dependencies, ML circuit, backlogs",
         "tags": [
           "Admin"
         ]
