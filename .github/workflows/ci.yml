@@ -30,6 +30,14 @@ jobs:
       - name: Build, test and check coverage
         working-directory: backend
         run: mvn -B verify
+      # If a test fails, publish which one as an annotation (log text needs a GitHub login to read, annotations do not)
+      - name: Show failing tests
+        if: failure()
+        working-directory: backend
+        run: |
+          rows=$(grep -hA2 -E "<<< (FAILURE|ERROR)!" target/surefire-reports/*.txt 2>/dev/null | head -30 | tr '\n' ';')
+          [ -n "$rows" ] && echo "::error title=Failing tests::${rows}"
+          exit 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:

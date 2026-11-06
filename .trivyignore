@@ -1,0 +1,16 @@
+# Reviewed exceptions for the image scan (.github/workflows/security.yml). Trivy reads this file automatically.
+# Every entry needs a reason and an expiry date (exp:), so it comes back for review instead of staying forever.
+#
+# Both findings are in spring-webmvc 6.2.19, the newest Spring Framework 6.2 release available as open source.
+# Spring's fixed version for the 6.2 line (6.2.20) is sold only with Enterprise Support, and the open-source fix is
+# Spring Framework 7 (Spring Boot 4), a major migration. Checked against Spring's own advisories (August 2026):
+#
+# CVE-2026-47884: path flaw in XsltView (Spring rates it Medium). Needs a Spring MVC app that renders views under a
+#   "/**" mapping. FraudGuard only has JSON @RestController endpoints, no view rendering and no XSLT, so it cannot be reached.
+CVE-2026-47884 exp:2027-02-05
+#
+# CVE-2026-47890: Server-Sent Events stream corruption when rendering view fragments (Low). FraudGuard uses neither SSE
+#   nor views, so it cannot be reached.
+CVE-2026-47890 exp:2027-02-05
+#
+# Remove both lines when Spring Boot is upgraded to a release that contains Spring Framework 7.0.9 or newer.
