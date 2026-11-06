@@ -73,6 +73,81 @@ Without `make`: `docker compose --profile app up -d --build` starts the applicat
 and `docker compose -f infra/observability/docker-compose.yml up -d` starts Prometheus and Grafana.
 Developing on your machine instead of in Docker is described in [docs/observability.md](docs/observability.md#starting-and-stopping-the-stack).
 
+## Architecture
+
+The box view of the finished system: the original box diagram from this README, redrawn with the security layer, the admin tools, the
+outbox relay, the ML circuit breaker, retraining and monitoring. The flow chart under "How it works" shows the same path in a few lines.
+
+```text
+┌ Browser ───────────────────────────────────┐        ┌ Ingestion client ──────────────────────────┐
+│ React dashboard, served by nginx (:8081)   │        │ A payment system or the seed script        │
+│ (Vite on :5173 when developing)            │        │ POST /api/transactions                     │
+│ Sign in as Analyst or Admin (JWT)          │        │ X-API-Key + Idempotency-Key headers        │
+│ Charts, list, details, reviews             │        │ (a service key, not a person's login)      │
+│ Admin only: the Operations tab             │        │                                            │
+│ Light and dark theme                       │        │                                            │
+└────────────────────────────────────────────┘        └────────────────────────────────────────────┘
+                      │ /api + JWT                                           │ API key
+                      ▼                                                      ▼
+┌ Spring Boot backend (:8080) ─────────────────────────────────────────────────────────────────────┐
+│  Security: /api = JWT login (ANALYST, ADMIN) or API key (ingestion).  /actuator = HTTP Basic.    │
+│            Login limited to 5/min per IP.  Public: health, API docs.  Everything else is closed. │
+│                                                                                                  │
+│  ┌ REST API ───────────────────────────────────┐ ┌ Admin only (ADMIN role) ────────────────────┐ │
+│  │ POST /api/transactions  ingest (202)        │ │ GET  /api/feedback/labels (training data)   │ │
+│  │ GET  /api/transactions  search, filters     │ │ POST re-drive of stuck PENDING payments     │ │
+│  │ GET  summary, trend, one payment            │ │ GET  dead-letter summary, system status     │ │
+│  │ POST review (reviewer = logged-in user)     │ │                                             │ │
+│  │ POST /api/auth/login, GET /api/auth/me      │ │ Shown in the dashboard as the               │ │
+│  │ GET  /api/feedback/stats, models, registry  │ │ Operations tab                              │ │
+│  └─────────────────────────────────────────────┘ └─────────────────────────────────────────────┘ │
+│                                                                                                  │
+│  ┌ Transaction service ─────────────────────┐      ┌ Outbox relay ────────────────────────────┐  │
+│  │ Validate, check the idempotency key      │      │ Reads unsent outbox rows, 500 per batch  │  │
+│  │ Save the payment as PENDING              │      │ Publishes them to transactions.raw       │  │
+│  │ Write outbox row (same DB transaction)   │ ──▶  │ Marks them as published (every 200 ms)   │  │
+│  │ Answer 202 Accepted                      │      │                                          │  │
+│  └──────────────────────────────────────────┘      └──────────────────────────────────────────┘  │
+│                                                                                                  │
+│  ┌ Event consumer (3 threads, one per Kafka partition) ───────────────────────────────────────┐  │
+│  │ 1  Skip an event it already applied (duplicate protection)                                 │  │
+│  │ 2  Velocity features from Redis (one atomic Lua script)                                    │  │
+│  │ 3  Fraud rules: rule score and reasons                                                     │  │
+│  │ 4  ML score (optional): 1.5 s timeout, circuit breaker opens after 3 failures for 30 s     │  │
+│  │ 5  Decision policy-v1: APPROVED / REVIEW / BLOCKED, with explanation and inputs snapshot   │  │
+│  │ 6  Save to PostgreSQL. On an error: retry after 1 s, 2 s, 4 s, then transactions.dlq       │  │
+│  └────────────────────────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                                  │
+│  Also: re-drive, dead-letter and system-status tools; metrics at /actuator/prometheus            │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+            publish +                read +                   features                 POST /score
+            consume                  write                    (Lua script)             + token
+            │                        │                        │                        │
+            ▼                        ▼                        ▼                        ▼
+┌ Kafka ───────────────┐ ┌ PostgreSQL ──────────┐ ┌ Redis ───────────────┐ ┌ ML service ──────────┐
+│ transactions.raw     │ │ transactions         │ │ Velocity features:   │ │ FastAPI (:8000)      │
+│ transactions.dlq     │ │ outbox_events        │ │ counts 5 min / 1 h   │ │ POST /score (token)  │
+│ 3 partitions each    │ │ analyst_reviews      │ │ average amount       │ │ Isolation Forest +   │
+│ key = accountId      │ │ users                │ │ last device, country │ │ gradient boosting    │
+│ (scored, decisions:  │ │ Flyway V1 to V9      │ │                      │ │ registry + reload    │
+│  created, unused)    │ │ (port 5432)          │ │ (port 6379)          │ │ GET /metrics         │
+└──────────────────────┘ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘
+
+  Around the system: retraining and monitoring
+  ────────────────────────────────────────────────────────────────────────────────────────────────
+┌ Retraining (offline) ┐ ┌ Prometheus (:9090) ──┐ ┌ Grafana (:3000) ─────┐ ┌ Kafka UI (:8085) ────┐
+│ retrain.py           │ │ Scrapes the backend  │ │ Reads Prometheus     │ │ Reads Kafka:         │
+│ labels from backend  │ │ and the ML service   │ │ FraudGuard Overview  │ │ topic browser        │
+│ train a challenger   │ │ 12 alert rules       │ │ dashboard as code:   │ │ consumer groups      │
+│ promotion gate       │ │ shown at /alerts     │ │ decisions, latency,  │ │ DLQ inspection       │
+│ registry.json        │ │ (no Alertmanager)    │ │ ML circuit, outbox,  │ │                      │
+│ POST /admin/reload   │ │                      │ │ dead letters         │ │                      │
+└──────────────────────┘ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘
+```
+
+Ports are the Docker Compose ones. Kafka's `transactions.scored` and `transactions.decisions` topics are created at start-up but are not used:
+the consumer saves the decision straight to PostgreSQL. More detail: [docs/architecture.md](docs/architecture.md).
+
 ## How it works
 
 ```mermaid
