@@ -10,11 +10,6 @@ feeds their verdicts back into retraining the model.
 > **Status:** all 13 planned phases are complete (API, Kafka pipeline with outbox, Redis features, rules, ML service, decision policy,
 > dashboard, feedback loop, reliability and observability, security, testing and performance, Docker and CI, documentation).
 
-> **Limitations and honesty.** This is a learning and portfolio project that runs on **synthetic data**. Every number in it
-> (scores, block rates, model improvements) describes the demo, not real-world fraud detection accuracy. It is **not
-> production-grade**: one Kafka broker, one database, shared secrets, in-memory rate limiting, no alert notifications. See
-> [Limitations](#limitations).
-
 ![The analyst dashboard](docs/images/dashboard.png)
 
 <details><summary>More screenshots: sign-in with demo accounts, dark theme, details drawer</summary>
