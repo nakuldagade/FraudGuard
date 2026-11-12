@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ---- build stage: install dependencies and TRAIN the baseline model (deterministic, seed 42) ----
-FROM python:3.12-slim AS build
+FROM python:3.15-slim AS build
 WORKDIR /srv
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -13,7 +13,7 @@ COPY training ./training
 RUN python training/train.py
 
 # ---- run stage: slim, non-root ----
-FROM python:3.12-slim
+FROM python:3.15-slim
 RUN useradd --system --uid 10001 --no-create-home fraudguard
 WORKDIR /srv
 COPY --from=build /opt/venv /opt/venv
