@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q -DskipTests package \
  && java -Djarmode=tools -jar target/*.jar extract --layers --launcher --destination /layers
 
 # ---- run stage: JRE only, non-root ----
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:24-jre
 # apt-get upgrade: picks up security fixes for OS packages that are newer than the base image (the image scan flags them)
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --no-create-home fraudguard
